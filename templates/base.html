@@ -1,0 +1,40 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Milepost{% endblock %}</title>
+  <meta name="description" content="{% block description %}Milepost keeps the record for homeschooling families and co-ops: attendance, activities, portfolios, and a transcript that says plainly what it is.{% endblock %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,ital,wght@7..72,0,400;7..72,0,600;7..72,1,400&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="wordmark" href="#top"><span class="marker" aria-hidden="true">MP</span> Milepost</a>
+    <nav>
+      <a href="#keeps">What it keeps</a>
+      <a href="#document">The transcript</a>
+      <a href="#coops">For co-ops</a>
+      <a href="#hello">Say hello</a>
+    </nav>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+
+<footer><div class="wrap footer-grid">
+    <div><a class="wordmark" href="#top" style="font-size:1.05rem"><span class="marker" aria-hidden="true">MP</span> Milepost</a></div>
+    <div>
+      Recordkeeping and curriculum for homeschooling families and co-ops.<br>
+      Not legal advice about your state&rsquo;s requirements.
+    </div>
+    <div><a href="mailto:hello@milepostfamily.com">hello@milepostfamily.com</a></div>
+  </div>
+</footer>
+
+</body>
+</html>

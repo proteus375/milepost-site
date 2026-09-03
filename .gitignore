@@ -1,0 +1,40 @@
+# ---- Secrets / local configuration ----
+.env
+.env.*
+!.env.example
+
+# ---- Django ----
+db.sqlite3
+*.log
+*.log.[0-9]*
+logs/
+media/
+staticfiles/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+*.egg-info/
+
+# ---- Virtual environments ----
+venv/
+.venv/
+env/
+ENV/
+
+# ---- Testing / coverage ----
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

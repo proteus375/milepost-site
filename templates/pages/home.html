@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% comment %}
+The whole pitch, on one page, until there is a second thing to say. Pricing
+needs numbers that do not exist and signup needs the billing app.
+
+Every .photo block is a placeholder at the right proportion, labelled with the
+shot that belongs in it. Replacing one with an <img> inside the same div does
+not move the layout:
+
+  <div class="photo"><img src="{% static 'img/kitchen-table.jpg' %}"
+       alt="Two children and their mother at the kitchen table"></div>
+
+Do not use identifiable children without written parental consent, including
+friends' children. Shots framed on hands, materials or a wide room carry the
+same warmth without the problem.
+{% endcomment %}
+
+{% block title %}Milepost &mdash; recordkeeping for homeschooling families{% endblock %}
+
+{% block content %}
+<main id="top">
+<section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">For homeschooling families and co-ops</p>
+        <h1>You&rsquo;re already doing the teaching. Milepost keeps the record.</h1>
+        <p class="lede">
+          Attendance, activities, projects and progress &mdash; written down as
+          they happen, so the spring paperwork is something you print rather
+          than something you dread.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#keeps">See how it works</a>
+          <a class="btn btn-ghost" href="#hello">Say hello</a>
+        </div>
+      </div>
+      <div class="photo" data-shot="Photo: two children and a parent at the kitchen table, mid-lesson"></div>
+    </div>
+  </section>
+
+  <section class="warm" id="keeps">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">What it keeps</p>
+        <h2>A year of learning, written down as it happens.</h2>
+        <p>
+          Not one more thing to keep up with. Log the museum trip on the way
+          home, tick the register at the end of the morning, and the record
+          builds itself out of what you were doing anyway.
+        </p>
+      </div>
+
+      <div class="keeps">
+        <article class="keep">
+          <div class="photo" data-shot="Photo: hands and a nature journal, close in"></div>
+          <h3>Activities</h3>
+          <p>
+            Swim club, the museum, the co-op field trip, the hours spent on a
+            model volcano. Photographs attach to the entry, so the evidence and
+            the note live together.
+          </p>
+        </article>
+        <article class="keep">
+          <div class="photo" data-shot="Photo: child reading on a sofa, warm light"></div>
+          <h3>Courses</h3>
+          <p>
+            Build a unit study from pages, readings and questions &mdash; or
+            import one somebody sent you &mdash; and see which child has
+            finished what.
+          </p>
+        </article>
+        <article class="keep">
+          <div class="photo" data-shot="Photo: wall calendar or family planner, hand writing"></div>
+          <h3>The week</h3>
+          <p>
+            Lessons, co-op mornings, live classes and the recurring things.
+            Subscribable from whatever calendar you already use.
+          </p>
+        </article>
+        <article class="keep">
+          <div class="photo" data-shot="Photo: parent and child at a laptop together"></div>
+          <h3>Attendance</h3>
+          <p>
+            A register per course, per day, with the totals stated and the dated
+            rows kept as the evidence for them.
+          </p>
+        </article>
+        <article class="keep">
+          <div class="photo" data-shot="Photo: printed portfolio pages and photographs on a table"></div>
+          <h3>The portfolio</h3>
+          <p>
+            Everything a child did across whatever span you choose, gathered
+            into one document you can print or hand over &mdash; grouped the way
+            an assessor reads it.
+          </p>
+        </article>
+        <article class="keep">
+          <div class="photo" data-shot="Photo: older teenager studying at a desk"></div>
+          <h3>The transcript</h3>
+          <p>
+            Completed courses, credit, dates. The document that stops being
+            hypothetical when a sixteen-year-old starts looking at colleges.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="leaf" id="document">
+    <div class="wrap proof">
+      <div>
+        <p class="eyebrow">When it has to be believed</p>
+        <h2>The transcript is where the care shows.</h2>
+        <p class="lede" style="font-size:1.05rem">
+          One day this leaves your house and lands on a stranger&rsquo;s desk.
+          Milepost tells that stranger exactly what they are holding: which
+          courses a co-op certified, and which you taught and stand behind.
+        </p>
+        <div class="plainly">
+          <p>
+            Attested credit is totalled and labelled, and deliberately kept out
+            of the grade average &mdash; because a number that mixed the two
+            would travel further than the explanation for it.
+          </p>
+          <p>
+            <strong>Your word is on the document, clearly marked as your
+            word.</strong> That is what makes the rest of it credible.
+          </p>
+        </div>
+      </div>
+
+      <figure class="doc" style="margin:0">
+        <div class="doc-head">
+          <h3>Amelia Whitfield &mdash; academic transcript</h3>
+          <p>2 completed courses &middot; compiled 1 June 2026</p>
+        </div>
+        <div class="doc-scroll">
+          <table class="transcript">
+            <thead>
+              <tr>
+                <th scope="col">Course</th><th scope="col">Code</th>
+                <th scope="col">Record</th><th scope="col" class="num">Credit</th>
+                <th scope="col" class="num">Grade</th><th scope="col" class="num">Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Biology<span class="taught-by">Sarah Nkemelu</span></td>
+                <td class="code">BIO2</td>
+                <td><span class="chip chip-cert">Certified</span></td>
+                <td class="num">1.00</td><td class="num">90</td>
+                <td class="num">12 May 2026</td>
+              </tr>
+              <tr>
+                <td>Ancient Rome<span class="taught-by">Parent-attested &mdash; Dana Whitfield</span></td>
+                <td class="code">&mdash;</td>
+                <td><span class="chip chip-att">Parent-attested</span></td>
+                <td class="num">1.00</td><td class="num">Completed</td>
+                <td class="num">20 May 2026</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="doc-foot">
+          Based on the 1 certified credit-bearing course with a recorded score.
+          No conversion to a 4.0-point scale has been applied, because grade
+          scales differ between institutions. Parent-attested courses are not
+          included: they carry no grade, and their credit is listed separately
+          above.
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  <section class="warm">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">Plainly</p>
+        <h2>Milepost will never tell you that you&rsquo;re compliant.</h2>
+        <p>
+          Requirements are set state by state and they genuinely disagree
+          &mdash; on hours, on subjects, on testing, on whether anyone reviews
+          your record at all. Any software that printed &ldquo;requirements
+          met&rdquo; would be making a promise it has no way to keep, to
+          somebody who would reasonably believe it.
+        </p>
+      </div>
+      <div class="plainly">
+        <p>
+          So Milepost does the useful thing instead, thoroughly: it keeps a
+          complete, dated record of what your children actually did, in a form
+          you can hand to whoever asks &mdash; <strong>and it says plainly what
+          that record is.</strong>
+        </p>
+      </div>
+
+      <div class="strip">
+        <div class="photo" data-shot="Photo: children outdoors with magnifying glass or field notes"></div>
+        <div class="photo" data-shot="Photo: art supplies mid-project"></div>
+        <div class="photo" data-shot="Photo: siblings reading together"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">Two things worth knowing early</p>
+        <h2>No accounts for your children. No hostage-taking of your records.</h2>
+      </div>
+      <div class="two-up">
+        <div>
+          <h3>Your children don&rsquo;t have logins</h3>
+          <p>
+            A child in Milepost is a record you own and manage &mdash; no
+            username, no password, no inbox, nothing for anybody to sign in to.
+            You act on their behalf, and so does their other parent, equally.
+          </p>
+          <p>
+            There is no child account to be broken into, because there is no
+            child account.
+          </p>
+        </div>
+        <div>
+          <h3>Take everything with you, any time</h3>
+          <p>
+            One archive per child, on demand: every course, submission, mark,
+            attendance record and activity, with the photographs and files,
+            alongside the readable portfolio and transcript.
+          </p>
+          <p>
+            It works whether or not you&rsquo;re a subscriber. Your family&rsquo;s
+            record is yours, and never held to ransom.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="warm" id="coops">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">For co-ops</p>
+        <h2>Households first, and the co-op around them.</h2>
+        <p>
+          A co-op teacher takes their own register, sets work and issues
+          certificates for the courses they teach. What they cannot do is read
+          a family&rsquo;s compiled record or export it &mdash; that belongs to
+          the household, and the line is enforced rather than promised. A family
+          that leaves takes everything with them.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="hello">
+    <div class="wrap closing">
+      <div>
+        <p class="eyebrow">Not open yet</p>
+        <h2>It&rsquo;s being built, carefully, by one person.</h2>
+        <p class="lede" style="font-size:1.05rem">
+          Milepost isn&rsquo;t taking sign-ups yet. If you homeschool, or run a
+          co-op, and you&rsquo;d like to know when it opens &mdash; or you have
+          an opinion about what it ought to keep &mdash; write and tell me.
+          Both are genuinely useful right now.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="mailto:hello@milepostfamily.com">Write to me</a>
+        </div>
+        <p class="signature">&mdash; Erick, building Milepost</p>
+      </div>
+      <div class="photo" data-shot="Photo: warm, quiet domestic scene &mdash; books, a table, morning light"></div>
+    </div>
+  </section>
+</main>
+{% endblock %}

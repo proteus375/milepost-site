@@ -1,0 +1,232 @@
+/* ---------------------------------------------------------------
+     White is the ground now, and the green is spent in small places.
+     Warmth comes from the photographs, a clay secondary and a lot of
+     air -- not from a beige page.
+     --------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+    --ground:       #FFFFFF;
+    --ground-warm:  #FBF7F1;
+    --surface:      #FFFFFF;
+    --ink:          #2A2724;
+    --ink-soft:     #55504A;
+    --muted:        #857E75;
+    --rule:         #E8E2D9;
+    --rule-strong:  #D3CABD;
+    /* Green runs through the page as a quiet identity colour -- the
+       marker, the section eyebrows, the pull-quote rule, the transcript
+       band and the footer -- but it never carries an action and it is
+       never the ground. Clay does the actions. */
+    --green:        #6FBF92;
+    --green-ink:    #2F6446;
+    --green-soft:   #EAF4EE;
+    --green-wash:   #F2F7F3;
+    --green-band:   #EDF4EF;
+    /* Clay carries the actions instead -- warmer, and it lets the
+       photographs rather than a brand colour set the temperature.
+       Darkened from the display tone so white text on it clears 4.5:1. */
+    --clay:         #9A5C28;
+    --clay-tint:    #B5713C;
+    --clay-soft:    #F7EBE0;
+    --photo-a:      #F0EAE2;
+    --photo-b:      #E4DCD1;
+    --shadow-soft:  0 2px 4px rgba(42,39,36,.04), 0 12px 32px -16px rgba(42,39,36,.22);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: Literata, Georgia, serif;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.18;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+  }
+  h1 { font-size: clamp(2.3rem, 5.4vw, 3.65rem); line-height: 1.1; }
+  h2 { font-size: clamp(1.65rem, 3.2vw, 2.35rem); }
+  h3 { font-size: 1.16rem; letter-spacing: 0; }
+  p { margin: 0; }
+  a { color: inherit; }
+
+  .wrap { width: min(100% - 2.5rem, 70rem); margin-inline: auto; }
+
+  .eyebrow {
+    font-size: .76rem; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--green-ink);
+  }
+
+  :where(a, button):focus-visible {
+    outline: 2px solid var(--clay); outline-offset: 3px; border-radius: 4px;
+  }
+
+  /* --- photo slots ------------------------------------------------
+     Warm tinted placeholders at the right proportions, labelled with
+     what belongs in them. Replace each with an <img> and the layout
+     does not move. */
+  .photo {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 22% 18%, var(--photo-a) 0%, transparent 60%),
+      radial-gradient(110% 100% at 82% 82%, var(--photo-b) 0%, transparent 62%),
+      var(--ground-warm);
+    display: grid;
+    place-items: end start;
+  }
+  .photo::after {
+    content: attr(data-shot);
+    margin: .9rem 1rem;
+    font-size: .72rem;
+    letter-spacing: .04em;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: .25rem .7rem;
+    max-width: calc(100% - 2rem);
+  }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* --- masthead --------------------------------------------------- */
+  .masthead .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1.5rem; padding-block: 1.35rem;
+  }
+  .wordmark {
+    display: flex; align-items: center; gap: .6rem;
+    font-family: Literata, Georgia, serif; font-weight: 600;
+    font-size: 1.28rem; letter-spacing: -0.02em; text-decoration: none;
+  }
+  .marker {
+    width: 20px; height: 29px; flex: none;
+    border-radius: 10px 10px 3px 3px;
+    background: var(--green); color: #10221A;
+    display: grid; place-items: center;
+    font-family: "IBM Plex Mono", monospace; font-size: .58rem; padding-top: 2px;
+  }
+  .masthead nav { display: flex; gap: 1.7rem; font-size: .94rem; }
+  .masthead nav a { color: var(--ink-soft); text-decoration: none; }
+  .masthead nav a:hover { color: var(--clay); }
+  @media (max-width: 48rem) { .masthead nav { display: none; } }
+
+  /* --- buttons ---------------------------------------------------- */
+  .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2.1rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .82rem 1.5rem; border-radius: 999px;
+    font-size: 1rem; font-weight: 500; text-decoration: none;
+    border: 1.5px solid transparent; transition: transform .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--clay); color: #fff; box-shadow: var(--shadow-soft); }
+  .btn-ghost { border-color: var(--rule-strong); color: var(--ink); background: var(--surface); }
+  .btn-ghost:hover { border-color: var(--clay); color: var(--clay); }
+  /* --- hero ------------------------------------------------------- */
+  .hero { padding-block: clamp(2.5rem, 6vw, 4.5rem) clamp(3rem, 7vw, 5rem); }
+  .hero-grid { display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }
+  @media (min-width: 60rem) {
+    .hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
+  }
+  .hero h1 { margin-top: 1rem; }
+  .lede { margin-top: 1.3rem; font-size: 1.16rem; color: var(--ink-soft); max-width: 32rem; }
+  .hero .photo { aspect-ratio: 4 / 3.2; }
+
+  /* --- sections --------------------------------------------------- */
+  section { padding-block: clamp(3.25rem, 6.5vw, 5rem); }
+  .warm { background: var(--ground-warm); }
+  .leaf { background: var(--green-wash); }
+  .head { max-width: 42rem; }
+  .head h2 { margin-top: .8rem; }
+  .head p { margin-top: 1.1rem; color: var(--ink-soft); font-size: 1.05rem; }
+
+  /* --- what it keeps ---------------------------------------------- */
+  .keeps { margin-top: 3rem; display: grid; gap: 2.25rem; }
+  @media (min-width: 46rem) { .keeps { grid-template-columns: 1fr 1fr; gap: 2.5rem 3rem; } }
+  @media (min-width: 68rem) { .keeps { grid-template-columns: repeat(3, 1fr); } }
+  .keep h3 { margin-bottom: .5rem; }
+  .keep p { color: var(--ink-soft); font-size: .99rem; }
+  .keep .photo { aspect-ratio: 3 / 2; margin-bottom: 1.1rem; }
+
+  /* --- moments strip ---------------------------------------------- */
+  .strip { margin-top: 2.75rem; display: grid; gap: 1.25rem; }
+  @media (min-width: 46rem) { .strip { grid-template-columns: 1.4fr 1fr 1fr; } }
+  .strip .photo:nth-child(1) { aspect-ratio: 3 / 2.4; }
+  .strip .photo:nth-child(2),
+  .strip .photo:nth-child(3) { aspect-ratio: 1 / 1.05; }
+
+  /* --- the document ----------------------------------------------- */
+  .proof { display: grid; gap: clamp(2.25rem, 4vw, 3.5rem); align-items: center; }
+  @media (min-width: 62rem) { .proof { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); } }
+  .doc {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 10px; box-shadow: var(--shadow-soft); overflow: hidden;
+  }
+  .doc-head { padding: 1.1rem 1.3rem .95rem; border-bottom: 1px solid var(--rule); }
+  .doc-head h3 { font-size: 1rem; }
+  .doc-head p { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+  .doc-scroll { overflow-x: auto; }
+  table.transcript {
+    width: 100%; border-collapse: collapse; font-size: .83rem;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  table.transcript th {
+    text-align: left; font-size: .66rem; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    padding: .65rem 1rem; border-bottom: 1px solid var(--rule-strong);
+  }
+  table.transcript td { padding: .75rem 1rem; border-bottom: 1px solid var(--rule); }
+  table.transcript tr:last-child td { border-bottom: 0; }
+  table.transcript .num { text-align: right; }
+  .taught-by { display: block; font-size: .73rem; color: var(--muted); margin-top: .1rem; }
+  .code { font-family: "IBM Plex Mono", monospace; font-size: .76rem; color: var(--ink-soft); }
+  .chip {
+    display: inline-block; padding: .12rem .55rem; border-radius: 999px;
+    font-size: .69rem; font-weight: 600;
+  }
+  .chip-cert { background: var(--green-soft); color: var(--green-ink); }
+  .chip-att  { background: var(--clay-soft); color: var(--clay); }
+  .doc-foot {
+    padding: .9rem 1.3rem 1rem; border-top: 1px solid var(--rule);
+    background: var(--ground-warm); font-size: .77rem; color: var(--muted); line-height: 1.5;
+  }
+
+  /* --- pull quote / plain speech ---------------------------------- */
+  .plainly {
+    margin-top: 1.75rem; padding-left: 1.5rem;
+    border-left: 3px solid var(--green); max-width: 40rem;
+  }
+  .plainly p { color: var(--ink-soft); }
+  .plainly p + p { margin-top: .9rem; }
+  .plainly strong { color: var(--ink); font-weight: 600; }
+
+  /* --- two up ------------------------------------------------------ */
+  .two-up { margin-top: 2.75rem; display: grid; gap: 2.5rem; }
+  @media (min-width: 50rem) { .two-up { grid-template-columns: 1fr 1fr; gap: 3.5rem; } }
+  .two-up h3 { margin-bottom: .6rem; }
+  .two-up p { color: var(--ink-soft); font-size: .99rem; }
+  .two-up p + p { margin-top: .75rem; }
+
+  /* --- closing ------------------------------------------------------ */
+  .closing { display: grid; gap: clamp(2rem, 4vw, 3.5rem); align-items: center; }
+  @media (min-width: 58rem) { .closing { grid-template-columns: 1fr 1fr; } }
+  .closing .photo { aspect-ratio: 4 / 3; }
+  .signature {
+    margin-top: 1.4rem; font-family: Literata, Georgia, serif;
+    font-style: italic; color: var(--muted); font-size: 1rem;
+  }
+
+  footer { background: var(--green-band); border-top: 1px solid var(--rule); padding-block: 2.5rem 3.25rem; font-size: .9rem; color: var(--muted); }
+  .footer-grid { display: flex; flex-wrap: wrap; gap: 1.5rem 3rem; justify-content: space-between; align-items: baseline; }
+  footer a { color: var(--ink-soft); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

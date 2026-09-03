@@ -1,0 +1,23 @@
+# Milepost — the public site and, later, the marketplace service.
+#
+# Django and Postgres are settled in docs/marketplace-design.md §A of the
+# homeschool-lms repository: Django for dj-stripe and the admin rather than
+# for familiarity, and one project with one database rather than two services.
+Django>=5.2,<6.3
+
+# Reads .env into the environment at startup. Pinned to the version
+# homeschool-lms pins, so the two projects cannot drift into different
+# behaviour over something as load-bearing as which settings get read.
+python-dotenv==1.2.2
+
+# Postgres. Not needed until there are models -- listed now because §A settles
+# the database and a requirements file that quietly says SQLite would be the
+# document and the code disagreeing on day one.
+psycopg[binary]>=3.2
+
+# Serves static files from the application process, so the marketing site
+# needs no separate web server in front of it to be correct -- only to be
+# fast, which is a later problem.
+whitenoise>=6.7
+
+gunicorn>=23.0

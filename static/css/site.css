@@ -254,4 +254,55 @@
   .footer-legal { margin: 1.75rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--rule); font-size: .8rem; max-width: 62ch; }
   .footer-legal strong { font-weight: 600; color: var(--ink-soft); }
 
+  /* --- product screenshots -----------------------------------------
+     Screens rather than photographs. They are documents, so they get a
+     hairline and a quiet ground rather than the rounded, cropped treatment
+     `.photo` gives a photograph -- a screenshot with its edges rounded off
+     reads as a decoration of the product instead of a picture of it.
+
+     `object-fit` is deliberately absent: a screenshot cropped to fill a box
+     loses the row a reader was meant to see. These scale whole. */
+  .shot { margin: 0; }
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--ground);
+    box-shadow: var(--shadow-soft);
+  }
+  .shot figcaption {
+    margin-top: .9rem;
+    font-size: .93rem;
+    color: var(--ink-soft);
+    max-width: 46ch;
+  }
+  .shot figcaption strong { color: var(--ink); font-weight: 600; }
+  /* Said on every screenshot, and said quietly. The records are invented and
+     a reader is entitled to know that without it being the loudest thing on
+     the page. */
+  .shot-note {
+    display: block;
+    margin-top: .45rem;
+    font-size: .82rem;
+    color: var(--muted);
+  }
+  /* ONE PER ROW, NOT TWO. A two-up grid halved these to about 330px from a
+     706px capture and the text in them stopped being readable -- which turns
+     a screenshot into decoration and quietly contradicts the heading above
+     it. At full width each renders at or below its native size, so every
+     figure in the picture can actually be read. Found by looking at the
+     page, which is the only way this kind of thing is ever found. */
+  .shots { margin-top: 3rem; display: grid; gap: 3.5rem; }
+  .shot img { max-width: 100%; }
+  @media (min-width: 64rem) {
+    /* The caption moves alongside rather than under: it is an annotation of
+       the screen, and side by side it can be read against the thing it
+       describes instead of after it. */
+    .shot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(20ch, 30ch); gap: 2.5rem; align-items: start; }
+    .shot figcaption { margin-top: .25rem; }
+  }
+  .shots-note { margin-top: 2.5rem; }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

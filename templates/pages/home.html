@@ -137,46 +137,76 @@ fails, and on a site about schoolwork it fails visibly.
         </div>
       </div>
 
-      <figure class="doc" style="margin:0">
-        <div class="doc-head">
-          <h3>Amelia Whitfield &mdash; academic transcript</h3>
-          <p>2 completed courses &middot; compiled 1 June 2026</p>
-        </div>
-        <div class="doc-scroll">
-          <table class="transcript">
-            <thead>
-              <tr>
-                <th scope="col">Course</th><th scope="col">Code</th>
-                <th scope="col">Record</th><th scope="col" class="num">Credit</th>
-                <th scope="col" class="num">Grade</th><th scope="col" class="num">Completed</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Biology<span class="taught-by">Sarah Nkemelu</span></td>
-                <td class="code">BIO2</td>
-                <td><span class="chip chip-cert">Certified</span></td>
-                <td class="num">1.00</td><td class="num">90</td>
-                <td class="num">12 May 2026</td>
-              </tr>
-              <tr>
-                <td>Ancient Rome<span class="taught-by">Parent-attested &mdash; Dana Whitfield</span></td>
-                <td class="code">&mdash;</td>
-                <td><span class="chip chip-att">Parent-attested</span></td>
-                <td class="num">1.00</td><td class="num">Completed</td>
-                <td class="num">20 May 2026</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="doc-foot">
-          Based on the 1 certified credit-bearing course with a recorded score.
-          No conversion to a 4.0-point scale has been applied, because grade
-          scales differ between institutions. Parent-attested courses are not
-          included: they carry no grade, and their credit is listed separately
-          above.
-        </div>
+      {# Replaced a hand-built HTML mock of a transcript. The mock was an
+         invented document drawn in markup; this is the software's own output,
+         which is both more honest and better evidence. The family in it is
+         fictional and the caption says so. #}
+      <figure class="shot shot-lead">
+        <img src="{% static 'img/screen-transcript.jpg' %}"
+             alt="A Milepost transcript listing three completed courses. Two are marked Certified with recorded grades; one is marked Parent-attested and shows Completed rather than a grade. A credit summary below separates certified from parent-attested credit.">
+        <figcaption>
+          The transcript, as Milepost produces it. Certified and parent-attested
+          coursework are labelled and totalled separately.
+          <span class="shot-note">Example records &mdash; not a real family.</span>
+        </figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">What you actually see</p>
+        <h2>Every figure on these pages came from somewhere.</h2>
+        <p>
+          These are real screens, not mock-ups &mdash; produced from a
+          demonstration family&rsquo;s records. Nothing is calculated that was
+          not recorded, and nothing is labelled more confidently than it earned.
+        </p>
+      </div>
+
+      <div class="shots">
+        <figure class="shot">
+          <img src="{% static 'img/screen-report-card.jpg' %}"
+               alt="A Milepost report card for one period. Three courses show a mark calculated from recorded scores and labelled From scores; one shows a mark labelled Your mark that the parent set instead; one shows No mark because nothing was recorded.">
+          <figcaption>
+            <strong>The report card</strong> uses your family&rsquo;s own
+            grading scale &mdash; and says, per course, whether the mark came
+            from the scores or from you. A course with neither shows nothing
+            rather than a zero.
+          </figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="{% static 'img/screen-hours.jpg' %}"
+               alt="A Milepost instruction log showing 474.50 hours over 206 days between 15 August 2025 and 31 May 2026, broken down by subject area, above a dated list of individual entries.">
+          <figcaption>
+            <strong>The instruction log</strong> answers the question most
+            states actually ask: how many hours, over how many days, in what.
+            Every total is backed by the dated rows underneath it.
+          </figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="{% static 'img/screen-plan.jpg' %}"
+               alt="A Milepost four-year plan for grades 5 to 8, listing each subject area with the hours the family is aiming for, what has been earned, and what is still to earn.">
+          <figcaption>
+            <strong>The four-year plan</strong> is your target, in your unit
+            &mdash; courses, hours or credit. Milepost scores your progress
+            against it and never tells you a state requirement has been met.
+          </figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="{% static 'img/screen-course-descriptions.jpg' %}"
+               alt="A Milepost course descriptions document listing three completed courses, each with who taught it, credit, completion date, a paragraph describing the course, and a content-covered summary.">
+          <figcaption>
+            <strong>Course descriptions</strong> are the companion a transcript
+            needs. A line reading <em>Biology, 1.0 credit</em> tells an
+            admissions officer almost nothing on its own.
+          </figcaption>
+        </figure>
+      </div>
+      <p class="shot-note shots-note">
+        Example records throughout &mdash; the Callahans are not a real family.
+      </p>
     </div>
   </section>
 

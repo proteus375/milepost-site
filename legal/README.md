@@ -48,11 +48,15 @@ is boilerplate:
 
 Ordered by how much rides on them.
 
-**1. Does COPPA attach?** `privacy-policy.md` takes the position that a guardian entering records
-about their own child is not collection *from* a child, so the verifiable-parental-consent machinery
-does not apply. If that is right, it is the most valuable consequence of a design decision made for
-unrelated reasons. If it is wrong, it is not a drafting problem — it changes the product. Nothing else
-in this set is worth as much attention.
+**1. Does COPPA attach — and what does student access do to the answer?** This was the strongest
+question in the set when these drafts were written, on the position that a guardian entering records
+about their own child is not collection *from* a child. **Design-doc revision 17 changed the facts
+underneath it.** Student access (§F) lets a child sign in and tick off their own work, so the service
+now collects from the child, and the question is no longer whether we are outside the Rule but what
+compliance inside it requires — including whether the guardian's own verified payment card can serve
+as verifiable parental consent, and what the under-13 case needs given that
+`StudentProfile.date_of_birth` is nullable and cannot be relied on. `privacy-policy.md` carries a
+superseded banner and must be rewritten before it goes to counsel.
 
 **2. Is the takedown procedure sufficient for the safe harbour?** `copyright-and-takedown.md` has
 statutory requirements behind it and is the document least safe to publish unreviewed. The repeat

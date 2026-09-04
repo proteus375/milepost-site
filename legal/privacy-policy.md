@@ -1,8 +1,11 @@
 # Milepost Privacy Policy
 
 **Version:** 1.0
-**Status:** DRAFT — not reviewed by counsel. **This is the document with the largest exposure behind
-it**, because the product exists to hold records about children. See the counsel briefing.
+**Status:** DRAFT — not reviewed by counsel, and **partly superseded before it was ever published.**
+Design-doc revision 17 adopted student logins (§F). The section below headed *About children,
+specifically* argues that nothing is collected **from** a child, and that argument stops being true
+the day student access ships. **Do not publish this document, and do not put its COPPA position to
+counsel as our position, until that section has been rewritten against §F.5.**
 
 ---
 
@@ -30,8 +33,13 @@ by their parent or guardian. Milepost never collects anything from a child direc
 has no way to give us anything. Every piece of information about a child in Milepost was entered by
 the adult responsible for them.
 
-This is a deliberate architectural decision made before it was a compliance question, and we intend to
-keep it that way.
+This is a deliberate architectural decision made before it was a compliance question.
+
+> **Superseded — revision 17.** Milepost is adding optional student access: a guardian may enable a
+> passphrase so a child can see and tick off their own work. The child still has no user account and
+> still supplies no personal information, but they do sign in, and this section must be rewritten to
+> describe that honestly rather than to deny it. See §F.5 of the design document for what was
+> designed and what it costs.
 
 [[TO CONFIRM — this is the single most important question for counsel. The amended COPPA Rule became
 fully enforceable in April 2026. COPPA governs the collection of personal information *from* a child.

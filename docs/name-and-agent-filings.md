@@ -22,6 +22,55 @@ qualified name. "Milepost" is a common word. Expect the same outcome and have a 
 ready — `Milepost Family`, `Milepost Learning`, `Milepost Homeschool` — rather than discovering the
 need for one at the counter.
 
+### Searched 4 September 2026 — and the name is settled
+
+**The trade name is `Milepost Family`.** The bare word is not available in
+practice, and the register said so in one search.
+
+| Searched | Result |
+| --- | --- |
+| `Milepost` | **MILEPOST, LLC** — Charleston, **Not Active**. **MILEPOST INSURANCE AGENCY LLC** — Omaha, **Active**. |
+| `Milepost Family` | Nothing |
+| `Milepost Learning` | Nothing |
+| `Milepost Homeschool` | Nothing |
+
+MILEPOST, LLC is the one that decides it. As a trade name, "Milepost" is not
+distinguishable from it — it is the same word — and *Not Active* does not free
+a name up on its own: most states hold a dissolved or revoked name for a period
+and it can be reinstated. This is the Guidepost outcome the section below
+predicted, arriving exactly as predicted.
+
+MILEPOST INSURANCE AGENCY LLC is the useful half of the result. An active
+registration sharing the word, distinguished only by a qualifier, is evidence
+that a qualified name is the route through rather than a fallback.
+
+**Why `Milepost Family` and not the other two.** All three are clear. Only this
+one matches `milepostfamily.com`, which is already registered — so the trade
+name, the primary domain, and the DMCA alternative names collapse into one
+string instead of three that need explaining to anybody who looks. It also does
+not depend on the phone call below going a particular way, which chasing the
+bare name would.
+
+> **"Milepost" survives as the product name and as an alternative name on the
+> designation.** These are different things and conflating them is the mistake
+> to avoid. The *trade name* registered with the state is Milepost Family; the
+> legal documents define "Milepost" as shorthand for the service at first
+> mention, which is ordinary drafting. And the Copyright Office's test for an
+> alternative name is *every name the public would plausibly search under* — so
+> both go on the designation. Listing both costs nothing and omitting either
+> makes the agent unfindable to somebody typing the one you left off.
+
+### One question the search cannot answer
+
+**Does this search include registered trade names, or only entities?** The
+state's own help page describes what it returns — *"entity names that match
+your search criteria along with entity type, city and status"* — and never
+says. If it is entities only, then a *trade name* "Milepost Family" already
+held by somebody would not have appeared in the clean result above.
+
+Ask before filing: Business and Licensing Division, **(304) 558-8000**,
+`business@wvsos.com`.
+
 ### What the search could not do from here, and why
 
 The WV Secretary of State's business entity search at
@@ -54,22 +103,31 @@ Two further caveats found while looking:
    you want is distinguishable from what is on file. They answer this all day; it is cheaper than a
    rejected filing.
 
-### If the name is available
+### Filing it
 
 | | |
 | --- | --- |
+| **Name** | `Milepost Family` |
 | **Form** | Application for Trade Name (DBA) — the **LLC version**, which is a different form from the sole-proprietor one |
 | **Filed with** | WV Secretary of State (Charleston, Clarksburg or Martinsburg), online via the One Stop Business Portal, by email, by mail, or in person |
 | **Fee** | **$25** |
 | **Renewal** | None. A WV trade name does not expire |
 | **Prerequisite** | A **WV Business Registration Certificate** from the State Tax Department ($30) must be in hand first. [[TO CONFIRM: whether Pointer Technologies LLC already holds one]] |
 
-### What the answer changes downstream
+### What has already been changed downstream
 
-- The alternative-names list on the DMCA designation (below).
-- `Pointer Technologies LLC` / `Milepost` wording in `legal/terms-of-service.md`,
-  `legal/privacy-policy.md` and `legal/publisher-terms.md`.
-- The site footer and the attribution string the content licence requires.
+- The DMCA alternative-names list below carries both names.
+- The legal drafts define the relationship at first mention: Pointer
+  Technologies LLC trading as Milepost Family, with "Milepost" as shorthand for
+  the service throughout. `terms-of-service.md`, `content-licence.md`,
+  `privacy-policy.md` and `copyright-and-takedown.md`.
+
+Still to change, and deliberately not yet:
+
+- **The marketing site.** Footer, attribution string, and anywhere the entity is
+  named. Left alone until the name is actually granted — renaming a live site
+  against a name the state has not issued is the mistake this whole search
+  existed to prevent, made one step later.
 
 ---
 
@@ -127,7 +185,8 @@ Fill this in, then type it in once.
 
 Each domain needs only its top-level form; subdomains are covered.
 
-- `Milepost` — **or the qualified trade name the state actually grants.** This line is what §1 blocks.
+- `Milepost Family` — the trade name, once granted. §1.
+- `Milepost` — the product name, and what the public will actually type.
 - `milepostfamily.com`
 - [[TO CONFIRM: the second registered domain]]
 - [[TO CONFIRM: the third registered domain]]
@@ -151,10 +210,12 @@ designation goes on file.
 ## Order of operations
 
 1. Confirm the WV Business Registration Certificate is in hand.
-2. Search the WV register (manually — reCAPTCHA). Call (304) 558-8000 if anything is close.
-3. File the trade name, $25. Wait for it to be granted.
-4. Stand up the `copyright@` mailbox and confirm someone monitors it.
-5. File the DMCA designation, $6, with the granted name on it.
-6. Publish `legal/copyright-and-takedown.md` with the agent block, linked from the site footer.
-7. Only then may a user-published pack be publicly reachable.
-8. Diary the designation's three-year renewal.
+2. ~~Search the WV register.~~ Done 4 September 2026 — `Milepost Family`.
+3. Call (304) 558-8000 with the one remaining question: are trade names in that
+   search, or only entities?
+4. File the trade name `Milepost Family`, $25. Wait for it to be granted.
+5. Stand up the `copyright@` mailbox and confirm someone monitors it.
+6. File the DMCA designation, $6, with both `Milepost Family` and `Milepost` on it.
+7. Publish `legal/copyright-and-takedown.md` with the agent block, linked from the site footer.
+8. Only then may a user-published pack be publicly reachable.
+9. Diary the designation's three-year renewal.

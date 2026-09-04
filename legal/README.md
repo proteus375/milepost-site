@@ -78,14 +78,19 @@ whether the organisation half is worth anything at all.
 ## Before any of this can go live
 
 - [ ] **Register the designated agent** with the U.S. Copyright Office — $6, renews every three years,
-      lists Milepost and all four domains as alternative names of Pointer Technologies LLC. It must be
+      lists Milepost Family, Milepost and all four domains as alternative names of Pointer Technologies
+      LLC. It must be
       on file **before the first user-published pack is publicly reachable**, which is earlier than
       this review needs to finish. The completed field-by-field submission is prepared in
       `docs/name-and-agent-filings.md`; it is blocked only on the trade-name search above.
-- [ ] **Search the West Virginia trade name register** before relying on "Milepost". Plain "Guidepost"
-      was rejected as not distinguishable; expect the same and have a qualified name ready. Whatever
-      is registered goes on the DMCA designation too. See `docs/name-and-agent-filings.md` for the
-      search procedure, the registration route and fee, and why this could not be automated.
+- [x] **Search the West Virginia trade name register.** Done 4 September 2026, and the bare name is
+      out: MILEPOST, LLC (Charleston, Not Active) makes "Milepost" not distinguishable as a trade
+      name. **The trade name is `Milepost Family`** — clear on the register, and it matches the
+      domain already registered. "Milepost" survives as the product name and as an alternative name
+      on the DMCA designation. See `docs/name-and-agent-filings.md`.
+- [ ] **File the trade name**, $25, after confirming the WV Business Registration Certificate ($30)
+      is in hand, and after one call to (304) 558-8000 to ask whether the public search covers
+      registered trade names or only entities — the state's own help page does not say.
 - [ ] Fill every `[[TO CONFIRM: …]]` marker. `grep -rn "TO CONFIRM" legal/` lists them.
 - [ ] Decide the retention periods in `privacy-policy.md` — these are now required to be published,
       and they are business decisions, not legal ones.

@@ -9,7 +9,7 @@ This licence covers every course pack shared through Milepost. There is only one
 carry different terms depending on who published it, and you never have to check whether two packs
 can be combined.
 
-**Milepost** means the service operated by Pointer Technologies LLC.
+**Milepost** means the service operated by Pointer Technologies LLC, trading as Milepost Family.
 **A pack** means a course and its contents shared through Milepost by a subscriber or an organisation.
 **The publisher** means whoever shared it.
 **You** means the subscriber who downloaded it.

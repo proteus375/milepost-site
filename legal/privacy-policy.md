@@ -8,8 +8,8 @@ shipped, and that argument is no longer true. 1.1 is written against what the so
 
 ---
 
-Milepost is operated by **Pointer Technologies LLC**. This policy explains what we hold, why, and what
-you can do about it.
+Milepost is operated by **Pointer Technologies LLC**, trading as **Milepost Family**. This policy
+explains what we hold, why, and what you can do about it.
 
 ## The short version
 

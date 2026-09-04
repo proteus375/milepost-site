@@ -7,7 +7,8 @@ safe harbour does not apply at all.
 
 ---
 
-Pointer Technologies LLC respects copyright and expects the same of everyone publishing on Milepost.
+Pointer Technologies LLC, trading as Milepost Family, respects copyright and expects the same of
+everyone publishing on Milepost.
 This policy explains how to tell us about infringing material and what we do about it.
 
 ## Our designated agent
@@ -21,8 +22,8 @@ first user-published pack is publicly reachable, and the details below must matc
 > [[Telephone]]
 > [[Email]]
 
-The designation is filed with the U.S. Copyright Office's Designated Agent Directory and lists Milepost
-and its domains as alternative names of Pointer Technologies LLC. It must be renewed every three years.
+The designation is filed with the U.S. Copyright Office's Designated Agent Directory and lists
+Milepost Family, Milepost and our domains as alternative names of Pointer Technologies LLC. It must be renewed every three years.
 
 ## Sending a notice
 

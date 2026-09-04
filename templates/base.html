@@ -26,7 +26,8 @@
 
 {% block content %}{% endblock %}
 
-<footer><div class="wrap footer-grid">
+<footer><div class="wrap">
+  <div class="footer-grid">
     <div><a class="wordmark" href="#top" style="font-size:1.05rem"><span class="marker" aria-hidden="true">MP</span> Milepost</a></div>
     <div>
       Recordkeeping and curriculum for homeschooling families and co-ops.<br>
@@ -34,6 +35,16 @@
     </div>
     <div><a href="mailto:hello@milepostfamily.com">hello@milepostfamily.com</a></div>
   </div>
+  {# The entity line. "Milepost" is the product; "Milepost Family" is the
+     registered West Virginia trade name of Pointer Technologies LLC, and the
+     two are deliberately not the same string. See
+     docs/name-and-agent-filings.md. #}
+  <p class="footer-legal">
+    Milepost is a service of <strong>Pointer Technologies LLC</strong>, a West Virginia
+    limited liability company trading as <strong>Milepost Family</strong>.
+    &copy; {% now "Y" %} Pointer Technologies LLC. All rights reserved.
+  </p>
+</div>
 </footer>
 
 </body>

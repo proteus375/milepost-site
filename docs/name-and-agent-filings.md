@@ -128,13 +128,26 @@ Two further caveats found while looking:
   the service throughout. `terms-of-service.md`, `content-licence.md`,
   `privacy-policy.md` and `copyright-and-takedown.md`.
 
+- **The marketing site footer**, done 4 September 2026 — and it turned out to
+  be an addition rather than a rename. **The site named the operating entity
+  nowhere at all**: no copyright line, no attribution, no legal links. So the
+  footer gained the line that was missing rather than having an old name
+  swapped out: *Milepost is a service of Pointer Technologies LLC, a West
+  Virginia limited liability company trading as Milepost Family.*
+
+  The product name is untouched, everywhere. "Milepost" is what the site says
+  and what a family will call it; "Milepost Family" is the registered trade
+  name, and it appears in the entity line and nowhere else. Renaming the
+  product to match the trade name would have been the obvious move and the
+  wrong one.
+
 Still to change:
 
-- **The marketing site.** Footer, attribution string, and anywhere the entity is
-  named. This was deferred until the name was granted, on the reasoning that
-  renaming a live site against a name the state had not issued would be the
-  mistake this whole search existed to prevent, made one step later. The name is
-  now granted, so the deferral has expired.
+- **Footer links to the legal documents.** Terms, privacy and the copyright
+  policy are unreviewed drafts and are not published, so there is nothing to
+  link to yet. The copyright policy's agent block in particular has to be live
+  on the site the same day the designation goes on file — §2's "other half" —
+  which makes this the footer's second pass, not a forgotten one.
 
 ---
 

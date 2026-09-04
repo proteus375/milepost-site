@@ -237,5 +237,10 @@
   footer { background: var(--green-band); border-top: 1px solid var(--rule); padding-block: 2.5rem 3.25rem; font-size: .9rem; color: var(--muted); }
   .footer-grid { display: flex; flex-wrap: wrap; gap: 1.5rem 3rem; justify-content: space-between; align-items: baseline; }
   footer a { color: var(--ink-soft); }
+  /* The entity line sits under the footer's own rule rather than in the
+     flex row: it is a legal attribution rather than a third column of
+     navigation, and it reads as one when it is set apart and quieter. */
+  .footer-legal { margin: 1.75rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--rule); font-size: .8rem; max-width: 62ch; }
+  .footer-legal strong { font-weight: 600; color: var(--ink-soft); }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

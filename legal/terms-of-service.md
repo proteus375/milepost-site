@@ -6,9 +6,8 @@
 ---
 
 Milepost is operated by **Pointer Technologies LLC**, a West Virginia limited liability company
-trading as **Milepost Family**. “Milepost” is used throughout these documents as shorthand for that
-service. [[TO CONFIRM: the trade name is chosen but not yet registered — see
-`docs/name-and-agent-filings.md`. Nothing here should be published until it is granted.]]
+trading as **Milepost Family**, a trade name registered with the West Virginia Secretary of State on
+4 September 2026. “Milepost” is used throughout these documents as shorthand for that service.
 
 These terms cover your use of Milepost. Three other documents form part of them: the **Acceptable Use
 Policy**, the **Copyright and Takedown Policy**, and the **Privacy Policy**. If you share course

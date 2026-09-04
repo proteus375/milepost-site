@@ -88,9 +88,10 @@ whether the organisation half is worth anything at all.
       name. **The trade name is `Milepost Family`** — clear on the register, and it matches the
       domain already registered. "Milepost" survives as the product name and as an alternative name
       on the DMCA designation. See `docs/name-and-agent-filings.md`.
-- [ ] **File the trade name**, $25, after confirming the WV Business Registration Certificate ($30)
-      is in hand, and after one call to (304) 558-8000 to ask whether the public search covers
-      registered trade names or only entities — the state's own help page does not say.
+- [x] **File the trade name.** Done 4 September 2026 — `Milepost Family` is registered with the WV
+      Secretary of State. No separate Business Registration Certificate was needed: the LLC's One
+      Stop filing was multi-agency and includes the Tax Department, and form NR-3 asks for no
+      registration number in any case.
 - [ ] Fill every `[[TO CONFIRM: …]]` marker. `grep -rn "TO CONFIRM" legal/` lists them.
 - [ ] Decide the retention periods in `privacy-policy.md` — these are now required to be published,
       and they are business decisions, not legal ones.

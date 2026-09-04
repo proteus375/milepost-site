@@ -22,6 +22,12 @@ qualified name. "Milepost" is a common word. Expect the same outcome and have a 
 ready — `Milepost Family`, `Milepost Learning`, `Milepost Homeschool` — rather than discovering the
 need for one at the counter.
 
+> **Registered 4 September 2026.** `Milepost Family` is the registered West
+> Virginia trade name of Pointer Technologies LLC. Filed online through the One
+> Stop portal (Secretary of State tab → Tradename Registration), $25 plus the $1
+> online processing fee. **This unblocks the DMCA designation below, and the
+> marketing site rename.**
+
 ### Searched 4 September 2026 — and the name is settled
 
 **The trade name is `Milepost Family`.** The bare word is not available in
@@ -107,7 +113,7 @@ Two further caveats found while looking:
 
 | | |
 | --- | --- |
-| **Name** | `Milepost Family` |
+| **Name** | `Milepost Family` — **registered 4 September 2026** |
 | **Form** | Application for Trade Name (DBA) — the **LLC version**, which is a different form from the sole-proprietor one |
 | **Filed with** | WV Secretary of State (Charleston, Clarksburg or Martinsburg), online via the One Stop Business Portal, by email, by mail, or in person |
 | **Fee** | **$25** |
@@ -122,12 +128,13 @@ Two further caveats found while looking:
   the service throughout. `terms-of-service.md`, `content-licence.md`,
   `privacy-policy.md` and `copyright-and-takedown.md`.
 
-Still to change, and deliberately not yet:
+Still to change:
 
 - **The marketing site.** Footer, attribution string, and anywhere the entity is
-  named. Left alone until the name is actually granted — renaming a live site
-  against a name the state has not issued is the mistake this whole search
-  existed to prevent, made one step later.
+  named. This was deferred until the name was granted, on the reasoning that
+  renaming a live site against a name the state had not issued would be the
+  mistake this whole search existed to prevent, made one step later. The name is
+  now granted, so the deferral has expired.
 
 ---
 
@@ -185,7 +192,7 @@ Fill this in, then type it in once.
 
 Each domain needs only its top-level form; subdomains are covered.
 
-- `Milepost Family` — the trade name, once granted. §1.
+- `Milepost Family` — the registered trade name. §1.
 - `Milepost` — the product name, and what the public will actually type.
 - `milepostfamily.com`
 - [[TO CONFIRM: the second registered domain]]
@@ -209,13 +216,22 @@ designation goes on file.
 
 ## Order of operations
 
-1. Confirm the WV Business Registration Certificate is in hand.
-2. ~~Search the WV register.~~ Done 4 September 2026 — `Milepost Family`.
-3. Call (304) 558-8000 with the one remaining question: are trade names in that
-   search, or only entities?
-4. File the trade name `Milepost Family`, $25. Wait for it to be granted.
-5. Stand up the `copyright@` mailbox and confirm someone monitors it.
-6. File the DMCA designation, $6, with both `Milepost Family` and `Milepost` on it.
-7. Publish `legal/copyright-and-takedown.md` with the agent block, linked from the site footer.
+1. ~~Confirm the WV Business Registration Certificate is in hand.~~ It is
+   applied for, not separately needed: the LLC was registered through One Stop
+   as a **multi-agency** filing (registration type *New Business 2*), which
+   includes the State Tax Department, so the certificate is part of that filing
+   rather than a second $30 BUS-APP. Submitted 2 September 2026 and still
+   processing; the Tax Department's usual turnaround is 2–4 weeks. **It did not
+   gate the trade name** — form NR-3 asks for no registration number.
+2. ~~Search the WV register.~~ Done 4 September 2026.
+3. ~~File the trade name.~~ **Done 4 September 2026 — `Milepost Family`.**
+4. Stand up the `copyright@` mailbox and confirm someone monitors it.
+5. File the DMCA designation, $6, with both `Milepost Family` and `Milepost` on
+   it. **Blocked only on the `[[TO CONFIRM]]` fields above** — a published
+   street address, the agent's name, phone and email, the administrative
+   contact, and the three domains this document does not know.
+6. Publish `legal/copyright-and-takedown.md` with the agent block, linked from the site footer.
+7. Rename the marketing site: footer, attribution string, and anywhere the
+   entity is named. No longer deferred — the name is granted.
 8. Only then may a user-published pack be publicly reachable.
 9. Diary the designation's three-year renewal.

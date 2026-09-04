@@ -13,18 +13,28 @@
     --muted:        #857E75;
     --rule:         #E8E2D9;
     --rule-strong:  #D3CABD;
-    /* Green runs through the page as a quiet identity colour -- the
-       marker, the section eyebrows, the pull-quote rule, the transcript
-       band and the footer -- but it never carries an action and it is
-       never the ground. Clay does the actions. */
+    /* Green runs through the page as the identity colour -- the marker,
+       the section eyebrows, the pull-quote rule, the transcript band, the
+       footer -- and it now carries the actions too. It is still never the
+       ground. */
     --green:        #6FBF92;
     --green-ink:    #2F6446;
     --green-soft:   #EAF4EE;
     --green-wash:   #F2F7F3;
     --green-band:   #EDF4EF;
-    /* Clay carries the actions instead -- warmer, and it lets the
-       photographs rather than a brand colour set the temperature.
-       Darkened from the display tone so white text on it clears 4.5:1. */
+    /* THE ACTION GREEN IS NOT --green, AND CANNOT BE.
+       --green is a display tone: white text on #6FBF92 lands at about
+       2.2:1, which fails AA by a wide margin and would make every button
+       on the page hard to read. So the buttons take their own darker
+       token, on the same reasoning that darkened clay from its display
+       tone. White on #2F6446 is about 6.9:1; the hover tint is lighter,
+       as a hover should be, and still clears AA at about 4.7:1. Anything
+       lighter than the tint stops passing -- check before changing. */
+    --green-action:      #2F6446;
+    --green-action-tint: #3E8159;
+    /* Clay stays as a secondary accent -- nav hover, the attested chip --
+       rather than disappearing. It is what keeps the page from reading as
+       one hue, and it lets the photographs set the temperature. */
     --clay:         #9A5C28;
     --clay-tint:    #B5713C;
     --clay-soft:    #F7EBE0;
@@ -65,7 +75,7 @@
   }
 
   :where(a, button):focus-visible {
-    outline: 2px solid var(--clay); outline-offset: 3px; border-radius: 4px;
+    outline: 2px solid var(--green-action); outline-offset: 3px; border-radius: 4px;
   }
 
   /* --- photo slots ------------------------------------------------
@@ -132,9 +142,10 @@
     border: 1.5px solid transparent; transition: transform .15s ease;
   }
   .btn:hover { transform: translateY(-1px); }
-  .btn-primary { background: var(--clay); color: #fff; box-shadow: var(--shadow-soft); }
+  .btn-primary { background: var(--green-action); color: #fff; box-shadow: var(--shadow-soft); }
+  .btn-primary:hover { background: var(--green-action-tint); }
   .btn-ghost { border-color: var(--rule-strong); color: var(--ink); background: var(--surface); }
-  .btn-ghost:hover { border-color: var(--clay); color: var(--clay); }
+  .btn-ghost:hover { border-color: var(--green-action); color: var(--green-action); }
   /* --- hero ------------------------------------------------------- */
   .hero { padding-block: clamp(2.5rem, 6vw, 4.5rem) clamp(3rem, 7vw, 5rem); }
   .hero-grid { display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }

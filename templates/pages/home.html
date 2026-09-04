@@ -4,16 +4,15 @@
 The whole pitch, on one page, until there is a second thing to say. Pricing
 needs numbers that do not exist and signup needs the billing app.
 
-Every .photo block is a placeholder at the right proportion, labelled with the
-shot that belongs in it. Replacing one with an <img> inside the same div does
-not move the layout:
+Every .photo block now holds an image from static/img/. The div is what sets
+the proportion, so swapping a photograph is swapping the src and the alt --
+the layout does not move.
 
-  <div class="photo"><img src="{% static 'img/kitchen-table.jpg' %}"
-       alt="Two children and their mother at the kitchen table"></div>
-
-Do not use identifiable children without written parental consent, including
-friends' children. Shots framed on hands, materials or a wide room carry the
-same warmth without the problem.
+The images are AI-generated, so no model releases are involved and nobody in
+them is a real child. Two consequences that do matter: there is no copyright
+in them, and any replacement must be checked at full size for garbled text.
+Anything with writing in frame -- worksheets, blocks, signage -- is where that
+fails, and on a site about schoolwork it fails visibly.
 {% endcomment %}
 
 {% block title %}Milepost &mdash; recordkeeping for homeschooling families{% endblock %}
@@ -35,7 +34,8 @@ same warmth without the problem.
           <a class="btn btn-ghost" href="#hello">Say hello</a>
         </div>
       </div>
-      <div class="photo" data-shot="Photo: two children and a parent at the kitchen table, mid-lesson"></div>
+      <div class="photo"><img src="{% static 'img/hero-map.jpg' %}"
+           alt="A mother and two children leaning over a world map spread across the kitchen table"></div>
     </div>
   </section>
 
@@ -53,7 +53,8 @@ same warmth without the problem.
 
       <div class="keeps">
         <article class="keep">
-          <div class="photo" data-shot="Photo: hands and a nature journal, close in"></div>
+          <div class="photo"><img src="{% static 'img/activities-drawing.jpg' %}"
+           alt="A child&rsquo;s hand drawing a house in coloured pencil"></div>
           <h3>Activities</h3>
           <p>
             Swim club, the museum, the co-op field trip, the hours spent on a
@@ -62,7 +63,8 @@ same warmth without the problem.
           </p>
         </article>
         <article class="keep">
-          <div class="photo" data-shot="Photo: child reading on a sofa, warm light"></div>
+          <div class="photo"><img src="{% static 'img/courses-father-daughter.jpg' %}"
+           alt="A father working through a maths notebook with his daughter at the dining table"></div>
           <h3>Courses</h3>
           <p>
             Build a unit study from pages, readings and questions &mdash; or
@@ -71,7 +73,8 @@ same warmth without the problem.
           </p>
         </article>
         <article class="keep">
-          <div class="photo" data-shot="Photo: wall calendar or family planner, hand writing"></div>
+          <div class="photo"><img src="{% static 'img/week-planner.jpg' %}"
+           alt="Hands typing on a laptop showing a weekly planner grid, notebooks alongside"></div>
           <h3>The week</h3>
           <p>
             Lessons, co-op mornings, live classes and the recurring things.
@@ -79,7 +82,8 @@ same warmth without the problem.
           </p>
         </article>
         <article class="keep">
-          <div class="photo" data-shot="Photo: parent and child at a laptop together"></div>
+          <div class="photo"><img src="{% static 'img/attendance-laptop.jpg' %}"
+           alt="A father and his young son looking at a laptop together at the kitchen table"></div>
           <h3>Attendance</h3>
           <p>
             A register per course, per day, with the totals stated and the dated
@@ -87,7 +91,8 @@ same warmth without the problem.
           </p>
         </article>
         <article class="keep">
-          <div class="photo" data-shot="Photo: printed portfolio pages and photographs on a table"></div>
+          <div class="photo"><img src="{% static 'img/portfolio-papers.jpg' %}"
+           alt="Worksheets, a biology lab report and captioned family photographs spread across a table by a window"></div>
           <h3>The portfolio</h3>
           <p>
             Everything a child did across whatever span you choose, gathered
@@ -96,7 +101,8 @@ same warmth without the problem.
           </p>
         </article>
         <article class="keep">
-          <div class="photo" data-shot="Photo: older teenager studying at a desk"></div>
+          <div class="photo"><img src="{% static 'img/transcript-teen.jpg' %}"
+           alt="A teenage girl writing notes beside a laptop and a history textbook at a window desk"></div>
           <h3>The transcript</h3>
           <p>
             Completed courses, credit, dates. The document that stops being
@@ -196,9 +202,12 @@ same warmth without the problem.
       </div>
 
       <div class="strip">
-        <div class="photo" data-shot="Photo: children outdoors with magnifying glass or field notes"></div>
-        <div class="photo" data-shot="Photo: art supplies mid-project"></div>
-        <div class="photo" data-shot="Photo: siblings reading together"></div>
+        <div class="photo"><img src="{% static 'img/outdoors-magnifier.jpg' %}"
+           alt="A young boy examining plant specimens in jars through a magnifying glass"></div>
+        <div class="photo"><img src="{% static 'img/art-painting.jpg' %}"
+           alt="Four children painting together at a table covered in paper and paint pots"></div>
+        <div class="photo"><img src="{% static 'img/reading-siblings.jpg' %}"
+           alt="An older sister and her younger brother sharing a picture book on the living-room rug"></div>
       </div>
     </div>
   </section>
@@ -270,7 +279,8 @@ same warmth without the problem.
         </div>
         <p class="signature">&mdash; Erick, building Milepost</p>
       </div>
-      <div class="photo" data-shot="Photo: warm, quiet domestic scene &mdash; books, a table, morning light"></div>
+      <div class="photo"><img src="{% static 'img/closing-desk.jpg' %}"
+           alt="A quiet desk by a window with a mug, a notebook and a pen"></div>
     </div>
   </section>
 </main>

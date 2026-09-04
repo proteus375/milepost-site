@@ -152,6 +152,11 @@
   .head { max-width: 42rem; }
   .head h2 { margin-top: .8rem; }
   .head p { margin-top: 1.1rem; color: var(--ink-soft); font-size: 1.05rem; }
+  /* .head p is more specific than .eyebrow, so an eyebrow inside a section
+     head was silently rendering as body copy -- right weight and tracking,
+     wrong size, wrong colour, and a margin it should not have. Restore the
+     three properties that lost, at a specificity that wins. */
+  .head .eyebrow { margin-top: 0; color: var(--green-ink); font-size: .76rem; }
 
   /* --- what it keeps ---------------------------------------------- */
   .keeps { margin-top: 3rem; display: grid; gap: 2.25rem; }

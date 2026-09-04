@@ -55,8 +55,10 @@ underneath it.** Student access (§F) lets a child sign in and tick off their ow
 now collects from the child, and the question is no longer whether we are outside the Rule but what
 compliance inside it requires — including whether the guardian's own verified payment card can serve
 as verifiable parental consent, and what the under-13 case needs given that
-`StudentProfile.date_of_birth` is nullable and cannot be relied on. `privacy-policy.md` carries a
-superseded banner and must be rewritten before it goes to counsel.
+`StudentProfile.date_of_birth` is nullable and cannot be relied on. **`privacy-policy.md` has been
+rewritten against what shipped (version 1.1) and now states that Milepost is inside the Rule rather
+than outside it.** Its four sub-questions, in the *What this means for COPPA* section, are the
+concrete asks.
 
 **2. Is the takedown procedure sufficient for the safe harbour?** `copyright-and-takedown.md` has
 statutory requirements behind it and is the document least safe to publish unreviewed. The repeat
@@ -78,10 +80,12 @@ whether the organisation half is worth anything at all.
 - [ ] **Register the designated agent** with the U.S. Copyright Office — $6, renews every three years,
       lists Milepost and all four domains as alternative names of Pointer Technologies LLC. It must be
       on file **before the first user-published pack is publicly reachable**, which is earlier than
-      this review needs to finish.
+      this review needs to finish. The completed field-by-field submission is prepared in
+      `docs/name-and-agent-filings.md`; it is blocked only on the trade-name search above.
 - [ ] **Search the West Virginia trade name register** before relying on "Milepost". Plain "Guidepost"
       was rejected as not distinguishable; expect the same and have a qualified name ready. Whatever
-      is registered goes on the DMCA designation too.
+      is registered goes on the DMCA designation too. See `docs/name-and-agent-filings.md` for the
+      search procedure, the registration route and fee, and why this could not be automated.
 - [ ] Fill every `[[TO CONFIRM: …]]` marker. `grep -rn "TO CONFIRM" legal/` lists them.
 - [ ] Decide the retention periods in `privacy-policy.md` — these are now required to be published,
       and they are business decisions, not legal ones.

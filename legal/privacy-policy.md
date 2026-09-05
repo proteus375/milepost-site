@@ -21,6 +21,8 @@ explains what we hold, why, and what you can do about it.
   families.
 - **We do not sell anything about you or your children**, do not share it with advertisers, and do not
   use it to train AI models.
+- **Nothing in Milepost sends a child's records to an AI model.** Not because we promise not to —
+  because there is no such feature.
 - You can **export everything about any child, in full, at any time**, without asking us.
 - You can ask us to delete it.
 
@@ -107,6 +109,12 @@ Only what is put there:
 Store it, show it to the guardian, show the child their own checklist if you enable that, and produce
 the documents you ask for. Nothing else. It is not used for advertising, not shared with third
 parties for their own purposes, and not used to train models.
+
+**There is no AI assistant, chatbot or similar feature in Milepost, and no part of the application
+sends anything about a child to a language model.** An assistant was built and then removed before
+launch, precisely because a product holding this much about a child is not the place for one. It was
+never connected to a provider and never sent a request; the code and its database tables are gone
+rather than switched off.
 
 ### What must never be published
 

@@ -137,10 +137,12 @@ fails, and on a site about schoolwork it fails visibly.
         </div>
       </div>
 
-      {# Replaced a hand-built HTML mock of a transcript. The mock was an
-         invented document drawn in markup; this is the software's own output,
-         which is both more honest and better evidence. The family in it is
-         fictional and the caption says so. #}
+      {% comment %}
+      Replaced a hand-built HTML mock of a transcript. The mock was an
+      invented document drawn in markup; this is the software's own output,
+      which is both more honest and better evidence. The family in it is
+      fictional and the caption says so.
+      {% endcomment %}
       <figure class="shot shot-lead">
         <img src="{% static 'img/screen-transcript.jpg' %}"
              alt="A Milepost transcript listing three completed courses. Two are marked Certified with recorded grades; one is marked Parent-attested and shows Completed rather than a grade. A credit summary below separates certified from parent-attested credit.">
@@ -240,6 +242,17 @@ fails, and on a site about schoolwork it fails visibly.
         <div class="photo"><img src="{% static 'img/reading-siblings.jpg' %}"
            alt="An older sister and her younger brother sharing a picture book on the living-room rug"></div>
       </div>
+
+      {% comment %}
+      A link rather than an eleventh section. Ten screenshots here would double
+      the distance to the contact form for a feature nobody chooses the product
+      on.
+      {% endcomment %}
+      <p class="shots-note">
+        Children get something of their own out of it too &mdash; their own
+        colours and their own picture, on every page they see.
+        <a href="{% url 'themes' %}">See the ten themes &rarr;</a>
+      </p>
     </div>
   </section>
 

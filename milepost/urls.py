@@ -15,4 +15,6 @@ from django.views.generic import TemplateView
 urlpatterns = [
     path('', TemplateView.as_view(template_name='pages/home.html'),
          name='home'),
+    path('themes/', TemplateView.as_view(template_name='pages/themes.html'),
+         name='themes'),
 ]

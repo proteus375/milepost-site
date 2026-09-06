@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% comment %}
+The themes gallery, on its own page rather than as an eleventh section of the
+home page. The home page is already a long scroll and this is ten images: it
+would have doubled the distance to the contact form for a feature nobody is
+choosing the product on.
+
+Every screenshot here is the same page -- the household roster of the
+demonstration family -- rendered in each theme. One page, ten times, because
+the comparison is the content: what changes is colour and the paper behind it,
+and showing that with ten different pages would hide it.
+{% endcomment %}
+
+{% block title %}Themes &mdash; Milepost{% endblock %}
+{% block description %}Ten looks a child can choose for their own pages in Milepost. The records underneath never change, and no theme reaches a document.{% endblock %}
+
+{% block content %}
+<main id="top">
+
+<section>
+  <div class="wrap head">
+    <p class="eyebrow">For the child, not the parent</p>
+    <h1>Ten looks. The record underneath is the same one.</h1>
+    <p>
+      Every child on an account picks their own colours and their own picture.
+      It follows them onto every page that is theirs, and their brother&rsquo;s
+      choice does not come with it.
+    </p>
+  </div>
+
+  <div class="wrap">
+    <div class="themes">
+      {% comment %}
+      Name and blurb sit under the picture rather than over it. Over it they
+      would need a scrim on ten different backgrounds, three of which are pale
+      and one of which is nearly black -- and a scrim would hide the thing the
+      picture is here to show.
+      {% endcomment %}
+      <figure class="theme">
+        <img src="{% static 'img/theme-meadow.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The Milepost household page in the Meadow theme: soft green paper with a faint scatter of leaves and butterflies">
+        <figcaption><strong>Meadow</strong> The default. Green and paper, and it gets out of the way.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-woodland.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Woodland theme: warm bark tones with toadstools, acorns and leaves">
+        <figcaption><strong>Woodland</strong> Bark and moss, with toadstools and acorns in the paper.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-ocean.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Ocean theme: pale sea-glass blue with whales, fish and starfish">
+        <figcaption><strong>Ocean</strong> Sea glass and deep blue, with whales going past.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-blossom.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Blossom theme: petal pink with flowers and butterflies">
+        <figcaption><strong>Blossom</strong> Petal pink and plum, with flowers and butterflies.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-space.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Space theme: a deep indigo night sky with planets, rockets and stars, the content on a pale sheet over it">
+        <figcaption><strong>Space</strong> A night sky. The one dark page &mdash; the reading sits on a lighter sheet over it.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-sunbeam.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Sunbeam theme: warm marigold with suns, bees and butterflies">
+        <figcaption><strong>Sunbeam</strong> Marigold and leaf green, with sunshine and bees.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-slate.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Slate theme: cool grey with a fine texture of dots and rings, no pictures">
+        <figcaption><strong>Slate</strong> Grey and plain, textured like ruled paper. For an older student who wants it to look like work.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-dinosaurs.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Dinosaurs theme: fern green with a forest of dinosaurs, ferns and volcanoes">
+        <figcaption><strong>Dinosaurs</strong> Fern green and volcanic orange, in a forest of them.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-animals.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Animals theme: warm sand tones with paw prints, cats, bees and ladybirds">
+        <figcaption><strong>Animals</strong> Warm sand, with paw prints and a menagerie wandering through.</figcaption>
+      </figure>
+      <figure class="theme">
+        <img src="{% static 'img/theme-unicorns.jpg' %}" width="960" height="459" loading="lazy"
+             alt="The same page in the Unicorns and Rainbows theme: lilac and violet with unicorns, rainbows and stars">
+        <figcaption><strong>Unicorns &amp; Rainbows</strong> Lilac and violet, with unicorns and rainbows.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="warm">
+  <div class="wrap two-up">
+    <div>
+      <p class="eyebrow">Where it stops</p>
+      <h2>A theme never reaches a document.</h2>
+      <p class="lede" style="font-size:1.05rem">
+        The transcript, the report card and the course descriptions are the
+        same pages whichever theme is set. A unicorn in the corner of a
+        transcript is a page an admissions officer has to look past, and a
+        report card handed to a county reviewer is not the place for a rocket.
+      </p>
+    </div>
+    <div>
+      <p class="eyebrow">And what it can change</p>
+      <h2>Colour, and the paper behind it. Nothing structural.</h2>
+      <p class="lede" style="font-size:1.05rem">
+        No type sizes, no spacing, no different arrangement of anything. Every
+        palette is measured against the same contrast floor before it ships,
+        because a colour scheme a seven-year-old picked must not make their own
+        schoolwork harder to read.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap head">
+    <p class="eyebrow">Also theirs</p>
+    <h2>And a picture, chosen separately.</h2>
+    <p>
+      Forty-one drawings &mdash; dinosaurs, pets, planets, unicorns, things
+      found outdoors &mdash; and a child picks one for next to their name. It
+      is a different question from the colours, and a child who wants the Ocean
+      palette and a fox is answering both. Leave it, and they get whatever
+      their theme would have put there.
+    </p>
+    <div class="actions" style="margin-top:1.6rem">
+      <a class="btn btn-ghost" href="{% url 'home' %}">Back to the main page</a>
+      <a class="btn btn-primary" href="mailto:hello@milepostfamily.com">Write to me</a>
+    </div>
+  </div>
+</section>
+
+</main>
+{% endblock %}

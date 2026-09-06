@@ -14,12 +14,19 @@
 
 <header class="masthead">
   <div class="wrap">
-    <a class="wordmark" href="#top"><span class="marker" aria-hidden="true">MP</span> Milepost</a>
+    {% comment %}
+    Absolute, not bare fragments. These were "#keeps" and the like, which
+    worked while there was one page and point at nothing on /themes/. The
+    wordmark goes home for the same reason rather than to the top of whatever
+    you happen to be reading.
+    {% endcomment %}
+    <a class="wordmark" href="{% url 'home' %}"><span class="marker" aria-hidden="true">MP</span> Milepost</a>
     <nav>
-      <a href="#keeps">What it keeps</a>
-      <a href="#document">The transcript</a>
-      <a href="#coops">For co-ops</a>
-      <a href="#hello">Say hello</a>
+      <a href="{% url 'home' %}#keeps">What it keeps</a>
+      <a href="{% url 'home' %}#document">The transcript</a>
+      <a href="{% url 'themes' %}">Themes</a>
+      <a href="{% url 'home' %}#coops">For co-ops</a>
+      <a href="{% url 'home' %}#hello">Say hello</a>
     </nav>
   </div>
 </header>
@@ -28,17 +35,19 @@
 
 <footer><div class="wrap">
   <div class="footer-grid">
-    <div><a class="wordmark" href="#top" style="font-size:1.05rem"><span class="marker" aria-hidden="true">MP</span> Milepost</a></div>
+    <div><a class="wordmark" href="{% url 'home' %}" style="font-size:1.05rem"><span class="marker" aria-hidden="true">MP</span> Milepost</a></div>
     <div>
       Recordkeeping and curriculum for homeschooling families and co-ops.<br>
       Not legal advice about your state&rsquo;s requirements.
     </div>
     <div><a href="mailto:hello@milepostfamily.com">hello@milepostfamily.com</a></div>
   </div>
-  {# The entity line. "Milepost" is the product; "Milepost Family" is the
-     registered West Virginia trade name of Pointer Technologies LLC, and the
-     two are deliberately not the same string. See
-     docs/name-and-agent-filings.md. #}
+  {% comment %}
+  The entity line. "Milepost" is the product; "Milepost Family" is the
+  registered West Virginia trade name of Pointer Technologies LLC, and the
+  two are deliberately not the same string. See
+  docs/name-and-agent-filings.md.
+  {% endcomment %}
   <p class="footer-legal">
     Milepost is a service of <strong>Pointer Technologies LLC</strong>, a West Virginia
     limited liability company trading as <strong>Milepost Family</strong>.
@@ -46,6 +55,35 @@
   </p>
 </div>
 </footer>
+
+{% comment %}
+Revealed once the reader is a screen or so down the page. Starts hidden in
+CSS, so with no JavaScript it stays hidden and the footer wordmark above is
+still a link to #top -- see the note in site.css.
+{% endcomment %}
+<a class="to-top" href="#top" aria-label="Back to top">
+  <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 13V3M3 8l5-5 5 5"/>
+  </svg>Top</a>
+
+<script>
+  (function () {
+    var button = document.querySelector('.to-top');
+    if (!button || !('IntersectionObserver' in window)) return;
+    /* The masthead, not #top. #top wraps the whole page, so it intersects the
+       viewport for the entire scroll and the button would never appear. The
+       masthead is the tallest thing that actually leaves. The positive top
+       margin grows the observed area upward, so the header has to be half a
+       screen gone before this fires -- otherwise the button pops up after
+       about seventy pixels of scrolling, which is worse than not having it. */
+    var header = document.querySelector('.masthead');
+    if (!header) return;
+    new IntersectionObserver(function (entries) {
+      button.classList.toggle('is-on', !entries[0].isIntersecting);
+    }, { rootMargin: '50% 0px 0px 0px' }).observe(header);
+  }());
+</script>
 
 </body>
 </html>

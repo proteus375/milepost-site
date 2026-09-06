@@ -305,4 +305,72 @@
   }
   .shots-note { margin-top: 2.5rem; }
 
+  /* --- themes gallery ------------------------------------------------
+     Ten screenshots of one page. They are wide (about 2 : 1) because that is
+     the shape of the page they are of, so two across is the most a laptop can
+     take before each becomes too small to read the theme in -- which is the
+     only thing they are here to show. One across below 52rem for the same
+     reason: half a phone's width would make ten identical grey smudges. */
+  .themes { margin-top: 2.75rem; display: grid; gap: 2rem 1.75rem; }
+  @media (min-width: 52rem) { .themes { grid-template-columns: 1fr 1fr; } }
+  .theme { margin: 0; }
+  .theme img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow-soft);
+  }
+  .theme figcaption {
+    margin-top: .8rem;
+    font-size: .95rem;
+    color: var(--ink-soft);
+  }
+  /* The name reads first and the sentence explains it, so they share a line
+     rather than stacking -- ten stacked two-line captions is a lot of vertical
+     for very little said. */
+  .theme figcaption strong { color: var(--ink); }
+  .theme figcaption strong::after { content: " \2014 "; font-weight: 400; color: var(--muted); }
+
+  /* --- back to top -----------------------------------------------------
+     A long page, and the masthead nav is hidden below 48rem -- so on a phone,
+     which is where the scroll is longest, there was no way back up at all
+     except flicking.
+
+     HIDDEN UNTIL IT IS EARNED, AND ABSENT IF IT CANNOT BE.
+     `visibility` rather than `display`, so the button is out of the tab order
+     while it is invisible: a control a keyboard reaches but a mouse cannot see
+     is worse than no control. The script that reveals it is the first
+     JavaScript on this site; if it does not run the button simply never
+     appears and the footer wordmark still links to #top. That is the reason it
+     starts hidden rather than starting visible -- the failure should be a
+     missing convenience, not a button floating over the hero. */
+  .to-top {
+    position: fixed;
+    right: clamp(.9rem, 3vw, 2rem);
+    bottom: clamp(.9rem, 3vw, 2rem);
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 44px;
+    padding: .55rem .9rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: .86rem;
+    font-weight: 500;
+    text-decoration: none;
+    box-shadow: var(--shadow-soft);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(.5rem);
+    transition: opacity .18s ease, transform .18s ease, visibility .18s;
+  }
+  .to-top.is-on { opacity: 1; visibility: visible; transform: none; }
+  .to-top:hover { border-color: var(--green-action); color: var(--green-action); }
+  .to-top:focus-visible { outline: 2px solid var(--green-action); outline-offset: 3px; }
+  .to-top svg { width: 14px; height: 14px; flex: none; }
+  @media print { .to-top { display: none; } }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

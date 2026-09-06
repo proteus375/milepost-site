@@ -33,9 +33,11 @@ both bite silently:
   is where generation fails, and on a site about schoolwork it fails visibly.
   Hands holding tools are the other one.
 
-So the audit table below carries a provenance column. Fill it in as images are
-replaced; `[[TO CONFIRM]]` is not a stalling device, it is an honest record
-that nobody currently knows.
+So the audit table below carries a provenance column, and it is filled in: the
+original eight that remain were generated, and the three replacements came from
+Adobe Stock. Keep it filled in for anything swapped later — `[[TO CONFIRM]]`
+against a row is an honest record that nobody knows, and is better than a guess
+that reads as fact.
 
 ## The rule that decides where to buy, when buying
 
@@ -119,31 +121,42 @@ different terms rather than taking the first grid:
 The release rule above does not change. A model release is still required wherever a child's face is
 identifiable, and it is required for exactly the same reasons whoever is in the picture.
 
-### The set as it stands
+### The set as it stands — closed
 
-Audited by opening all eleven, not by reading the file names. Everyone visible in every photograph
-that has a person in it is white. Cross a row off as it is replaced.
+**Three were replaced and the set was then called finished.** Slots 2, 3, 4, 7, 9 and 10 still show
+the original cast; that is a decision, not a backlog. The casting rule above stays in force for
+anything bought or generated from here on, which is what it is for — it governs the next purchase,
+not a queue of pending ones.
+
+The audit is kept rather than deleted because it is the evidence for the rule. A future reader
+asking why this document has a casting section gets a straight answer from the table.
 
 | Slot | File | Who is in it | Origin | Action |
 | --- | --- | --- | --- | --- |
-| 1 Hero | ~~`hero-map.jpg`~~ → `hero-family-table.jpg` | Father and mother, two young sons | [[TO CONFIRM]] | **Done.** `hero-map.jpg` is now unused |
-| 2 Journal | `activities-drawing.jpg` | One child's hand and forearm, light skin | Generated | Recast when convenient — a hand still has a skin tone |
-| 3 Reading | `courses-father-daughter.jpg` | White father, white daughter | Generated | **Recast** |
-| 4 Planner | `week-planner.jpg` | Two hands at a laptop, light skin | Generated | Recast when convenient |
-| 5 Laptop | `attendance-laptop.jpg` | Mother and son at the kitchen table | [[TO CONFIRM]] | **Done.** Replaced in place |
+| 1 Hero | ~~`hero-map.jpg`~~ → `hero-family-table.jpg` | Father and mother, two young sons | Adobe Stock | **Done.** `hero-map.jpg` is now unused |
+| 2 Journal | `activities-drawing.jpg` | One child's hand and forearm, light skin | Generated | Kept |
+| 3 Reading | `courses-father-daughter.jpg` | White father, white daughter | Generated | Kept |
+| 4 Planner | `week-planner.jpg` | Two hands at a laptop, light skin | Generated | Kept |
+| 5 Laptop | `attendance-laptop.jpg` | Mother and son at the kitchen table | Adobe Stock | **Done.** Replaced in place |
 | 6 Portfolio | `portfolio-papers.jpg` | No people | Generated | Keep |
-| 7 Teen | `transcript-teen.jpg` | White teenage girl | Generated | **Recast** |
-| 8 Outdoors | `outdoors-magnifier.jpg` | Boy with a magnifying glass and a leaf | [[TO CONFIRM]] | **Done.** Replaced in place |
-| 9 Art | `art-painting.jpg` | Four white children | Generated | **Recast** — four children in one frame is the cheapest range on the page. One candidate was rejected: see below |
-| 10 Siblings | `reading-siblings.jpg` | Two white children | Generated | **Recast** |
+| 7 Teen | `transcript-teen.jpg` | White teenage girl | Generated | Kept |
+| 8 Outdoors | `outdoors-magnifier.jpg` | Boy with a magnifying glass and a leaf | Adobe Stock | **Done.** Replaced in place |
+| 9 Art | `art-painting.jpg` | Four white children | Generated | Kept — one replacement candidate was rejected, see below |
+| 10 Siblings | `reading-siblings.jpg` | Two white children | Generated | Kept |
 | 11 Closing | `closing-desk.jpg` | No people | Generated | Keep |
 
-Seven of these need a model release, which is unchanged from the original brief — slots 1, 3, 5, 7,
-8, 9 and 10 all show identifiable faces. Slots 2 and 4 are hands and can come from a free library.
+**Three of the eleven are licensed photography and need their paperwork kept.** Slots 1, 5 and 8 came
+from Adobe Stock and all three show an identifiable child, so the model releases are the ones Adobe
+supplies with the licence. **The asset IDs and receipts are not recorded anywhere yet, and should
+be** — the note under Buying below says why, and reconstructing which purchase produced which file
+gets harder every month.
 
-**Three replaced so far.** The hero now has a father teaching, which changes what slot 5 has to
-carry: the point about not losing a father-teaching photograph is satisfied by slot 1, so slot 5 was
-free to change. Five to go — 2, 3, 4, 7, 9 — plus 10.
+The other eight were generated and need no release at all, which is what makes the two halves of
+this set different in kind rather than just in origin.
+
+**Three replaced, and then the set was closed.** The hero now has a father teaching, which changed
+what slot 5 had to carry: the point about not losing a father-teaching photograph is satisfied by
+slot 1, so slot 5 was free to change. The remaining slots were kept as they are.
 
 **Store each file at its slot's own shape.** The originals were all 16:9 while the slots render at
 4:3.2, 3:2 and 3:2.4, so `object-fit: cover` was throwing away the sides of every one of them. The
@@ -203,8 +216,9 @@ moves into another.
 | 9 Art | Four children, genuinely mixed group | The best value on the page: one purchase, four children, and it is already the busiest frame |
 | 10 Siblings | Two Black or mixed-heritage siblings — **or** the disability slot | Seated, close to camera and calm, so a hearing aid or a wheelchair reads naturally here rather than as the point of the picture |
 
-Eight slots to source. Four need releases — 1, 3, 7 and 10 — which is back to the original plan's
-budget, because 8 and 9 both work with heads down or from overhead.
+Three of these were sourced — 1, 5 and 8 — and the rest were kept. The allocation below is left
+whole rather than trimmed to what was bought: it is the plan a future replacement should be picked
+against, so that one photograph swapped in two years' time does not have to re-derive it.
 
 **Where the disability line lands.** Slot 10 is the suggestion, but slot 1 is the braver choice and
 the better one: a wheelchair at the kitchen table in the hero says the thing without a caption. It

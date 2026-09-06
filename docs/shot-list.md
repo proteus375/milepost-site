@@ -13,10 +13,38 @@ Files go in `static/img/`. Aspect ratios below are enforced by CSS — a source 
 ratio will be cropped to fit by `object-fit: cover`, so what matters is that the subject sits
 comfortably inside the given shape, not that the file matches it exactly.
 
-## The rule that decides where to buy
+## Where these come from, which is not one answer
 
-**Any slot where a child's face is identifiable needs a model release**, and a release for a minor
-means a parent or guardian signed it. Free libraries do not supply releases — Unsplash says outright
+**The set is mixed, and that has to be written down per image rather than
+assumed.** The original eleven were generated, deliberately — the note at the
+top of `templates/pages/home.html` records it and the reasoning: no model
+releases are involved and nobody in them is a real child. Later replacements
+have not all been made the same way.
+
+That is a workable position, but only while anybody can tell which is which.
+Two things follow from an image being generated rather than photographed, and
+both bite silently:
+
+- **There is no copyright in it.** Nothing stops a competitor using the same
+  image, and nothing is infringed if they do. Fine for most slots; worth
+  knowing before one of them becomes the thing the brand is recognised by.
+- **It has to be checked at full size for garbled text and broken hands.**
+  Anything with writing in frame — worksheets, blocks, signage, sticky notes —
+  is where generation fails, and on a site about schoolwork it fails visibly.
+  Hands holding tools are the other one.
+
+So the audit table below carries a provenance column. Fill it in as images are
+replaced; `[[TO CONFIRM]]` is not a stalling device, it is an honest record
+that nobody currently knows.
+
+## The rule that decides where to buy, when buying
+
+This section applies to **bought photography only**. A generated image has no
+model to release, which is most of why the original set was generated at all —
+the quality bar in the section above replaces it.
+
+**Any bought slot where a child's face is identifiable needs a model release**, and a release for a
+minor means a parent or guardian signed it. Free libraries do not supply releases — Unsplash says outright
 that it does not guarantee commercial use of images with identifiable people and that the
 responsibility is yours; Pexels does not address releases at all. A marketing site is commercial use
 of a likeness.
@@ -96,19 +124,19 @@ identifiable, and it is required for exactly the same reasons whoever is in the 
 Audited by opening all eleven, not by reading the file names. Everyone visible in every photograph
 that has a person in it is white. Cross a row off as it is replaced.
 
-| Slot | File | Who is in it | Action |
-| --- | --- | --- | --- |
-| 1 Hero | ~~`hero-map.jpg`~~ → `hero-family-table.jpg` | Father and mother, two young sons | **Done.** `hero-map.jpg` is now unused |
-| 2 Journal | `activities-drawing.jpg` | One child's hand and forearm, light skin | Recast when convenient — a hand still has a skin tone |
-| 3 Reading | `courses-father-daughter.jpg` | White father, white daughter | **Recast** |
-| 4 Planner | `week-planner.jpg` | Two hands at a laptop, light skin | Recast when convenient |
-| 5 Laptop | `attendance-laptop.jpg` | Mother and son at the kitchen table | **Done.** Replaced in place |
-| 6 Portfolio | `portfolio-papers.jpg` | No people | Keep |
-| 7 Teen | `transcript-teen.jpg` | White teenage girl | **Recast** |
-| 8 Outdoors | `outdoors-magnifier.jpg` | Boy with a magnifying glass and a leaf | **Done.** Replaced in place |
-| 9 Art | `art-painting.jpg` | Four white children | **Recast** — four children in one frame is the cheapest range on the page. One candidate was rejected: see below |
-| 10 Siblings | `reading-siblings.jpg` | Two white children | **Recast** |
-| 11 Closing | `closing-desk.jpg` | No people | Keep |
+| Slot | File | Who is in it | Origin | Action |
+| --- | --- | --- | --- | --- |
+| 1 Hero | ~~`hero-map.jpg`~~ → `hero-family-table.jpg` | Father and mother, two young sons | [[TO CONFIRM]] | **Done.** `hero-map.jpg` is now unused |
+| 2 Journal | `activities-drawing.jpg` | One child's hand and forearm, light skin | Generated | Recast when convenient — a hand still has a skin tone |
+| 3 Reading | `courses-father-daughter.jpg` | White father, white daughter | Generated | **Recast** |
+| 4 Planner | `week-planner.jpg` | Two hands at a laptop, light skin | Generated | Recast when convenient |
+| 5 Laptop | `attendance-laptop.jpg` | Mother and son at the kitchen table | [[TO CONFIRM]] | **Done.** Replaced in place |
+| 6 Portfolio | `portfolio-papers.jpg` | No people | Generated | Keep |
+| 7 Teen | `transcript-teen.jpg` | White teenage girl | Generated | **Recast** |
+| 8 Outdoors | `outdoors-magnifier.jpg` | Boy with a magnifying glass and a leaf | [[TO CONFIRM]] | **Done.** Replaced in place |
+| 9 Art | `art-painting.jpg` | Four white children | Generated | **Recast** — four children in one frame is the cheapest range on the page. One candidate was rejected: see below |
+| 10 Siblings | `reading-siblings.jpg` | Two white children | Generated | **Recast** |
+| 11 Closing | `closing-desk.jpg` | No people | Generated | Keep |
 
 Seven of these need a model release, which is unchanged from the original brief — slots 1, 3, 5, 7,
 8, 9 and 10 all show identifiable faces. Slots 2 and 4 are hands and can come from a free library.
@@ -135,10 +163,18 @@ Separately, and regardless of how it was made, it was a Halloween scene — pain
 faces date an evergreen page to October, on a slot whose brief asks only for paint, brushes and
 mess.
 
-The first reason is the one that generalises. This page argues that these are real families keeping
-real records, which makes invented children a poor fit for it whatever the licence says, and a bad
-thing to be found out about later. Check provenance on anything bought from here on, and keep it
-with the receipts.
+**The rejection was on craft, not on origin — and the first draft of this note got that wrong.**
+It argued that invented children are a poor fit for a page about real families, which reads as a
+principle and is not one this project holds: the original eleven were generated on purpose, for
+reasons recorded at the top of `home.html`. Generation is not the objection.
+
+*Bad* generation is. A brush that does not touch what it is painting and fingers that merge are the
+failure the note at the top of this document warns about, on the slot most likely to show it —
+children holding tools, with paint and paper in frame. The Halloween framing is a separate and
+equally sufficient reason.
+
+The lesson that generalises is the checking, not the sourcing: look at every candidate at full size,
+at the hands and at anything with writing on it, whichever way it was made.
 
 Slot 9 is worth doing first after the hero: four children in one frame carries more range for one
 purchase than any other slot on the page, and it is already the busiest image.

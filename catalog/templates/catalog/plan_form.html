@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_new %}Start a plan{% else %}Edit {{ plan.title }}{% endif %} &mdash; Milepost{% endblock %}
+
+{% block content %}
+<main class="wrap account-page">
+  <h1>{% if is_new %}Start a plan{% else %}Edit this plan{% endif %}</h1>
+
+  {% if is_new %}
+    <p class="lede">
+      A draft, visible only to you until it is published. Publishing is not
+      open yet.
+    </p>
+  {% endif %}
+
+  <form method="post" class="account-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field.errors }}
+        {{ field }}
+        {% if field.help_text %}
+          <span class="helptext">{{ field.help_text }}</span>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit">Save</button>
+  </form>
+</main>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Course plans &mdash; Milepost{% endblock %}
+{% block description %}Course plans shared by homeschooling families and co-ops on Milepost.{% endblock %}
+
+{% block content %}
+<main class="wrap plans-page">
+  <p class="eyebrow">The catalogue</p>
+  <h1>Course plans</h1>
+  <p class="lede">
+    Plans other families have written and shared. Every one names who published
+    it and who wrote it.
+  </p>
+
+  <nav class="subject-filter" aria-label="Filter by subject">
+    <a href="{% url 'plans' %}"{% if not chosen %} aria-current="page"{% endif %}>All</a>
+    {% for value, label in subjects %}
+      <a href="{% url 'plans' %}?subject={{ value }}"{% if chosen == value %} aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% comment %}
+  The empty state is the state this page ships in, so it is written properly
+  rather than left as a bare "no results". Nothing has been published because
+  publishing needs the publisher terms, and those need a lawyer -- see the
+  note in catalog/views.py.
+  {% endcomment %}
+  <ul class="plan-list">
+    {% for plan in listings %}
+      <li class="plan-card">
+        <p class="plan-subject">{{ plan.get_subject_display }} &middot; {{ plan.grade_range }}</p>
+        <h2><a href="{{ plan.get_absolute_url }}">{{ plan.title }}</a></h2>
+        <p class="plan-summary">{{ plan.summary }}</p>
+        <p class="plan-by">Published by {{ plan.owner_name }}</p>
+      </li>
+    {% empty %}
+      <li class="plan-empty">
+        <p>
+          {% if chosen %}
+            No plans in that subject yet.
+          {% else %}
+            No plans have been published yet. This is where they will be.
+          {% endif %}
+        </p>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if user.is_authenticated %}
+    <p class="plan-actions">
+      <a class="btn btn-ghost" href="{% url 'new_plan' %}">Start a plan</a>
+      <a class="btn btn-ghost" href="{% url 'your_plans' %}">Your plans</a>
+    </p>
+  {% endif %}
+</main>
+{% endblock %}

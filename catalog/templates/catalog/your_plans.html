@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Your plans &mdash; Milepost{% endblock %}
+
+{% block content %}
+<main class="wrap plans-page">
+  <p class="eyebrow">Yours</p>
+  <h1>Your plans</h1>
+  <p class="lede">
+    Everything you can edit, including plans belonging to a co-op you publish
+    for. Drafts are visible only to the people who can edit them.
+  </p>
+
+  <ul class="plan-list">
+    {% for plan in listings %}
+      <li class="plan-card">
+        <p class="plan-subject">
+          {{ plan.get_subject_display }} &middot; {{ plan.grade_range }}
+        </p>
+        <h2><a href="{{ plan.get_absolute_url }}">{{ plan.title }}</a></h2>
+        <p class="plan-summary">{{ plan.summary }}</p>
+        <p class="plan-by">
+          {{ plan.get_status_display }} &middot; {{ plan.owner_name }}
+        </p>
+      </li>
+    {% empty %}
+      <li class="plan-empty"><p>You have not started a plan yet.</p></li>
+    {% endfor %}
+  </ul>
+
+  <p class="plan-actions"><a class="btn btn-ghost" href="{% url 'new_plan' %}">Start a plan</a></p>
+</main>
+{% endblock %}

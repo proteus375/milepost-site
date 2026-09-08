@@ -59,6 +59,13 @@ def profile(request, handle):
     return render(request, 'accounts/profile.html', {
         'person': person,
         'is_own': request.user.is_authenticated and request.user.pk == person.pk,
+        # Reached through the reverse accessor rather than by importing
+        # `catalog`, which keeps the dependency running one way: catalog
+        # knows about accounts because a listing needs an owner, and accounts
+        # does not need to know what a listing is to show a list of them.
+        # `visible()` is the one place that decides what a stranger sees, so
+        # drafts stay out of this without this page having an opinion.
+        'plans': person.listings.visible(),
     })
 
 

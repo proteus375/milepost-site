@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ plan.title }} &mdash; Milepost{% endblock %}
+{% block description %}{{ plan.summary }}{% endblock %}
+
+{% block content %}
+<main class="wrap plan-page">
+  {% if not plan.is_published %}
+    <p class="plan-draft">Draft &mdash; only you can see this.</p>
+  {% endif %}
+
+  <p class="eyebrow">{{ plan.get_subject_display }} &middot; {{ plan.grade_range }}</p>
+  <h1>{{ plan.title }}</h1>
+  <p class="lede">{{ plan.summary }}</p>
+
+  {% comment %}
+  Both halves of §C.4.2's attribution, and only when they differ. On a
+  personal listing the owner and the contributor are the same person, and
+  "Published by Ada, contributed by Ada" reads like a bug.
+  {% endcomment %}
+  {% comment %}
+  "Published by" on a page that says "Draft" two lines above it is the wrong
+  word in the one place a reader is checking what state their plan is in.
+  {% endcomment %}
+  <p class="plan-by">
+    {% if plan.is_published %}Published by{% else %}Will be published by{% endif %}
+    <strong>{{ plan.owner_name }}</strong>
+    {% if plan.contributed_by and not plan.owner_account_id %}
+      &middot; contributed by {{ plan.contributed_by.public_name }}
+    {% endif %}
+  </p>
+
+  {% if plan.description %}
+    <div class="plan-body">{{ plan.description|linebreaks }}</div>
+  {% endif %}
+
+  {% comment %}
+  No download, because there is nothing to download: a listing does not carry
+  its pack yet. Said here rather than left to be inferred from the absence of
+  a button.
+  {% endcomment %}
+  <p class="plan-note">
+    This plan has no course pack attached yet, so there is nothing to download.
+  </p>
+
+  {% if can_edit %}
+    <p class="plan-actions"><a class="btn btn-ghost" href="{% url 'edit_plan' plan.slug %}">Edit</a></p>
+  {% endif %}
+</main>
+{% endblock %}

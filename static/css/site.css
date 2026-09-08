@@ -391,17 +391,29 @@
   .account-form { margin-top: 2rem; display: grid; gap: 1.25rem; }
   .account-form .field { display: grid; gap: .35rem; margin: 0; }
   .account-form label { font-weight: 600; font-size: .92rem; }
+  /* `select` and `textarea` belong here too. They were left out while this
+     block only dressed the sign-up form, and the first form with a dropdown
+     on it rendered three native controls in the middle of six styled ones --
+     different height, different border, different corner radius, on the same
+     column. A control that looks like it came from somewhere else reads as
+     an error before it reads as a control. */
   .account-form input[type="text"],
   .account-form input[type="email"],
-  .account-form input[type="password"] {
+  .account-form input[type="password"],
+  .account-form select,
+  .account-form textarea {
     width: 100%;
     padding: .6rem .7rem;
     border: 1px solid var(--rule, #d8d4c8);
     border-radius: 6px;
     font: inherit;
+    color: inherit;
     background: #fff;
   }
-  .account-form input:focus-visible {
+  .account-form textarea { resize: vertical; min-height: 6rem; }
+  .account-form input:focus-visible,
+  .account-form select:focus-visible,
+  .account-form textarea:focus-visible {
     outline: 2px solid var(--green-action);
     outline-offset: 1px;
   }
@@ -476,3 +488,73 @@
   /* The masthead has three groups now and only enough room for two on a
      phone. The anchors go (as they already did); these stay. */
   @media (max-width: 48rem) { .account-nav { gap: .8rem; } }
+
+  /* --- the catalogue -----------------------------------------------
+     A page-per-listing product, per §A -- so this is a reading surface
+     with a filter, not an application shell with a results grid. The
+     cards carry a border and nothing else: they are one list of one kind
+     of thing, and a shadow on each would say they were separate objects
+     competing for attention.
+     --------------------------------------------------------------- */
+  .plans-page, .plan-page { padding-block: 3.5rem 5rem; }
+  .plan-page { max-width: 42rem; }
+
+  .subject-filter {
+    display: flex; flex-wrap: wrap; gap: .45rem;
+    margin-top: 2rem; font-size: .9rem;
+  }
+  .subject-filter a {
+    padding: .3rem .85rem; border-radius: 999px;
+    border: 1px solid var(--rule); color: var(--ink-soft);
+    text-decoration: none;
+  }
+  .subject-filter a:hover { border-color: var(--rule-strong); color: var(--ink); }
+  .subject-filter a[aria-current="page"] {
+    background: var(--green-soft); border-color: var(--green);
+    color: var(--green-ink); font-weight: 500;
+  }
+
+  .plan-list-heading { margin-top: 2.75rem; font-size: 1.15rem; }
+  .plan-list { list-style: none; margin: 2rem 0 0; padding: 0;
+               display: grid; gap: 1rem; }
+  @media (min-width: 52rem) {
+    .plans-page .plan-list { grid-template-columns: 1fr 1fr; }
+  }
+  .plan-card {
+    border: 1px solid var(--rule); border-radius: 10px;
+    padding: 1.4rem 1.5rem; background: var(--surface);
+    display: grid; gap: .5rem; align-content: start;
+  }
+  .plan-card h2, .plan-card h3 { font-size: 1.2rem; margin: 0; }
+  .plan-card a { color: inherit; text-decoration: none; }
+  .plan-card a:hover { color: var(--green-action); }
+  .plan-subject {
+    margin: 0; font-size: .74rem; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--green-ink); font-weight: 600;
+  }
+  .plan-summary { margin: 0; color: var(--ink-soft); }
+  .plan-by { margin: 1.4rem 0 0; color: var(--ink-soft); font-size: .95rem; }
+  .plan-card .plan-by { margin: 0; font-size: .88rem; }
+
+  .plan-empty {
+    border: 1px dashed var(--rule-strong); border-radius: 10px;
+    padding: 2rem 1.5rem; color: var(--muted); text-align: center;
+  }
+  .plan-empty p { margin: 0; }
+  /* A grid child that must span both columns, or an empty catalogue renders
+     as one narrow box beside a gap. */
+  @media (min-width: 52rem) { .plans-page .plan-empty { grid-column: 1 / -1; } }
+
+  .plan-draft {
+    display: inline-block; margin: 0 0 1rem;
+    padding: .3rem .8rem; border-radius: 999px;
+    background: var(--clay-soft); color: var(--clay);
+    font-size: .82rem; font-weight: 600;
+  }
+  .plan-body { margin-top: 2rem; }
+  .plan-note {
+    margin-top: 2.25rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted); font-size: .92rem;
+  }
+  .plan-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: .7rem; }

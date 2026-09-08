@@ -97,10 +97,12 @@ ALLOWED_HOSTS = env_list(
 # said would come with it: auth, sessions, messages, contenttypes and the
 # admin. This project has a database now for the first time.
 #
-# The rest of the list stays short on the same reasoning. `billing`, `catalog`
-# and `instances` are still absent, still deliberately, and each still arrives
-# with its first model rather than as an empty package claiming work has
-# started.
+# `catalog` arrives here with `Listing` and `TermsAcceptance`, by the same
+# rule: an app appears when it has a model, not before. `billing` and
+# `instances` are still absent, still deliberately. `instances` is the one
+# with a visible consequence -- there is no installation credential, so there
+# is no machine channel, so a publish is a person uploading through the site
+# rather than an instance pushing over §D's authenticated channel.
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -109,6 +111,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.staticfiles',
     'accounts',
+    'catalog',
 ]
 
 MIDDLEWARE = [

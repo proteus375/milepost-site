@@ -14,6 +14,7 @@
 {% block submit %}Save{% endblock %}
 
 {% block after %}
+  <p><a href="{% url 'your_plans' %}">Your course plans</a>.</p>
   {% comment %}
   A staff account has no page at /people/<handle>/ -- see Account.is_public --
   so this link would be a 404 for the one person most likely to click it while

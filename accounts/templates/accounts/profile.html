@@ -27,6 +27,24 @@ feature that does not exist.
     Joined {{ person.date_joined|date:"F Y" }}
   </p>
 
+  {% comment %}
+  The first thing this page has ever had on it besides a name. Published
+  plans only -- drafts are not somebody else's business, and `visible()` is
+  the one place that decides what a stranger sees.
+  {% endcomment %}
+  {% if plans %}
+    <h2 class="plan-list-heading">Course plans</h2>
+    <ul class="plan-list">
+      {% for plan in plans %}
+        <li class="plan-card">
+          <p class="plan-subject">{{ plan.get_subject_display }} &middot; {{ plan.grade_range }}</p>
+          <h3><a href="{{ plan.get_absolute_url }}">{{ plan.title }}</a></h3>
+          <p class="plan-summary">{{ plan.summary }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
   {% if is_own %}
     <p><a href="{% url 'edit_profile' %}">Edit your profile</a></p>
   {% endif %}

@@ -23,5 +23,9 @@ urlpatterns = [
     # detail of which app happens to serve them. The handles those paths would
     # otherwise collide with are reserved -- see models.RESERVED_HANDLES.
     path('', include('accounts.urls')),
+    # `catalog` owns `plans/`. Same reasoning as above: a person reads and
+    # types /plans/a-year-of-botany/, and which app serves it is not their
+    # business.
+    path('', include('catalog.urls')),
     path('admin/', admin.site.urls),
 ]

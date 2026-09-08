@@ -374,3 +374,105 @@
   @media print { .to-top { display: none; } }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* ---------------------------------------------------------------------
+     Account pages
+
+     The marketing site's own type and colour, deliberately. Somebody arrives
+     here from the front page and is about to hand over a password; a form
+     that looks like a different product at that moment is not a good first
+     impression, and a second set of form styles is a second thing to keep in
+     step with the first.
+     --------------------------------------------------------------------- */
+  .account-page { padding-block: 4rem 5rem; max-width: 34rem; }
+  .account-page h1 { margin-bottom: .6rem; }
+  .account-page .lede { margin-top: .8rem; }
+
+  .account-form { margin-top: 2rem; display: grid; gap: 1.25rem; }
+  .account-form .field { display: grid; gap: .35rem; margin: 0; }
+  .account-form label { font-weight: 600; font-size: .92rem; }
+  .account-form input[type="text"],
+  .account-form input[type="email"],
+  .account-form input[type="password"] {
+    width: 100%;
+    padding: .6rem .7rem;
+    border: 1px solid var(--rule, #d8d4c8);
+    border-radius: 6px;
+    font: inherit;
+    background: #fff;
+  }
+  .account-form input:focus-visible {
+    outline: 2px solid var(--green-action);
+    outline-offset: 1px;
+  }
+  /* The adult confirmation is a checkbox and its label belongs beside it,
+     not above it like the text fields.
+
+     ALL THREE CHILDREN NEED AN `order`, not two. The help text is written
+     before the label in the template and had none, so it took the default of
+     0 and sorted ahead of both -- the explanation appeared above a checkbox
+     that had not been introduced yet, and the label sat under it looking
+     like a caption. Ordering two of three items orders nothing. */
+  .account-form .field:has(input[type="checkbox"]) {
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: .2rem .6rem;
+  }
+  .account-form .field:has(input[type="checkbox"]) input { order: 1; margin-top: .3rem; }
+  .account-form .field:has(input[type="checkbox"]) label { order: 2; font-weight: 400; }
+  .account-form .field:has(input[type="checkbox"]) .helptext { order: 3; grid-column: 2; }
+
+  .account-form .helptext { font-size: .85rem; color: var(--ink-soft); }
+  /* Django hands the password rules over as a <ul> inside the help text.
+     Now that it stays inside the span (see the note in _form_page.html) it
+     needs to read as help rather than as content: tight to the field it
+     belongs to, indented only as far as its own markers. */
+  .account-form .helptext ul { margin: .3rem 0 0; padding-left: 1.15rem; }
+  .account-form .helptext li { margin: 0; }
+  .account-form ul.errorlist {
+    margin: 0; padding: 0; list-style: none;
+    font-size: .88rem; color: #8a2f1d;
+  }
+  .account-form button {
+    justify-self: start;
+    padding: .65rem 1.4rem;
+    border: 0; border-radius: 6px;
+    background: var(--green-action); color: #fff;
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .account-form button:hover { filter: brightness(1.06); }
+
+  /* --- account controls in the masthead ----------------------------
+     Deliberately not inside `.masthead nav`, which is display:none below
+     48rem. Anchors into the front page can afford to vanish on a phone;
+     the only route to signing in cannot.
+
+     The sign-out control is a <button> inside a form (LogoutView is POST
+     only), and it has to sit beside two anchors without announcing itself
+     as the loudest thing in the header -- so it is stripped back to look
+     like the links it stands next to, and keeps a real focus ring.
+     --------------------------------------------------------------- */
+  .account-nav {
+    display: flex; align-items: center; gap: 1.1rem;
+    font-size: .94rem; flex: none;
+  }
+  .account-nav a { color: var(--ink-soft); text-decoration: none; }
+  .account-nav a:hover { color: var(--clay); }
+  .account-nav form { margin: 0; }
+  .account-nav button {
+    padding: 0; border: 0; background: none;
+    font: inherit; color: var(--ink-soft); cursor: pointer;
+  }
+  .account-nav button:hover { color: var(--clay); }
+  .account-nav a:focus-visible,
+  .account-nav button:focus-visible {
+    outline: 2px solid var(--green-action); outline-offset: 3px; border-radius: 3px;
+  }
+  .account-nav-join {
+    padding: .32rem .95rem; border-radius: 999px;
+    border: 1.5px solid var(--rule-strong);
+  }
+  .account-nav-join:hover { border-color: var(--green-action); color: var(--green-action); }
+  /* The masthead has three groups now and only enough room for two on a
+     phone. The anchors go (as they already did); these stay. */
+  @media (max-width: 48rem) { .account-nav { gap: .8rem; } }

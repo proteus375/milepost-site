@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,ital,wght@7..72,0,400;7..72,0,600;7..72,1,400&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
-  <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/site.css' %}?v=3">
 </head>
 <body>
 
@@ -28,6 +28,28 @@
       <a href="{% url 'home' %}#coops">For co-ops</a>
       <a href="{% url 'home' %}#hello">Say hello</a>
     </nav>
+    {% comment %}
+    OUTSIDE <nav>, ON PURPOSE. That nav is a list of anchors into the front
+    page and it is hidden below 48rem -- fine for "What it keeps", not fine
+    for the only way to sign in. These are controls rather than reading, so
+    they live in their own group that survives the mobile hide.
+
+    Signing out is a POST because Django's LogoutView is POST-only, and that
+    is a feature: a GET that ends a session can be fired by an <img> tag on
+    any page the reader visits.
+    {% endcomment %}
+    <div class="account-nav">
+      {% if user.is_authenticated %}
+        <a href="{% url 'edit_profile' %}">{{ user.public_name }}</a>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Sign out</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}">Sign in</a>
+        <a class="account-nav-join" href="{% url 'sign_up' %}">Join</a>
+      {% endif %}
+    </div>
   </div>
 </header>
 

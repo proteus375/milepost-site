@@ -1,0 +1,18 @@
+{% extends "accounts/_form_page.html" %}
+
+{% block title %}Your profile &mdash; Milepost{% endblock %}
+{% block heading %}Your profile{% endblock %}
+
+{% block intro %}
+  <p class="lede">
+    You are <strong>{{ request.user.handle }}</strong>. Your handle is the
+    address other people use to find you, so it stays as it is &mdash; ask us
+    if it needs changing.
+  </p>
+{% endblock %}
+
+{% block submit %}Save{% endblock %}
+
+{% block after %}
+  <p><a href="{% url 'profile' request.user.handle %}">See your public page</a>.</p>
+{% endblock %}

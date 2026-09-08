@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% comment %}
+One person, as everybody else sees them.
+
+WHAT IS NOT ON THIS PAGE IS THE POINT OF IT. No email, ever: it is a
+credential, and keeping it off here is why the model has a separate `handle`
+at all. Nothing else about them either, because nothing else has been
+published yet.
+
+This is where reputation will appear when there is any. It is built before
+that, because a public identity with no public page is not a public identity,
+and every badge in that design is a thing somebody ELSE is meant to see.
+There is no placeholder for it: an empty "Badges" heading would promise a
+feature that does not exist.
+{% endcomment %}
+
+{% block title %}{{ person.public_name }} &mdash; Milepost{% endblock %}
+{% block description %}{{ person.public_name }} on Milepost.{% endblock %}
+
+{% block content %}
+<main class="wrap account-page">
+  <p class="eyebrow">Milepost member</p>
+  <h1>{{ person.public_name }}</h1>
+  <p class="lede">
+    {% if person.display_name %}@{{ person.handle }} &middot; {% endif %}
+    Joined {{ person.date_joined|date:"F Y" }}
+  </p>
+
+  {% if is_own %}
+    <p><a href="{% url 'edit_profile' %}">Edit your profile</a></p>
+  {% endif %}
+</main>
+{% endblock %}

@@ -35,6 +35,7 @@ deployment to get it wrong.
 """
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -92,25 +93,56 @@ ALLOWED_HOSTS = env_list(
     default=['localhost', '127.0.0.1'] if DEBUG else [],
 )
 
+# `accounts` has arrived, and with it everything the note that used to be here
+# said would come with it: auth, sessions, messages, contenttypes and the
+# admin. This project has a database now for the first time.
+#
+# The rest of the list stays short on the same reasoning. `billing`, `catalog`
+# and `instances` are still absent, still deliberately, and each still arrives
+# with its first model rather than as an empty package claiming work has
+# started.
 INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.messages',
+    'django.contrib.sessions',
     'django.contrib.staticfiles',
-    # That is the whole list, and it is short on purpose.
-    #
-    # No auth, sessions, admin, messages or contenttypes. They arrive with
-    # `accounts`, which is the app that first needs a user. Marketing pages
-    # have no models, so today this project needs no database at all -- and
-    # including contenttypes anyway means two unapplied migrations nagging on
-    # every runserver about a database nothing reads. A site that ships
-    # session middleware it does not use is also a cookie it does not need to
-    # set, which matters more than usual on a page aimed at families who are
-    # deliberate about what they hand over.
+    'accounts',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# THE DECISION THAT CANNOT BE TAKEN LATER. Django's own documentation is blunt
+# about it: changing AUTH_USER_MODEL once migrations exist that point at it is
+# "significantly more difficult", and every app still to be written --
+# billing, catalog, instances -- will point at it. So it is set here, in the
+# commit that brings the first model, and not after.
+#
+# `Account`, not `User`, because §C's identity model has two kinds of person
+# in it -- somebody with a marketplace login and somebody with a login on
+# their family's own installation -- and calling both "user" is how that
+# distinction gets lost in conversation before it gets lost in code.
+AUTH_USER_MODEL = 'accounts.Account'
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'home'
+
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 ROOT_URLCONF = 'milepost.urls'
@@ -121,16 +153,22 @@ TEMPLATES = [{
     'APP_DIRS': True,
     'OPTIONS': {'context_processors': [
         'django.template.context_processors.request',
+        'django.contrib.auth.context_processors.auth',
+        'django.contrib.messages.context_processors.messages',
     ]},
 }]
 
 WSGI_APPLICATION = 'milepost.wsgi.application'
 
-# Nothing reads this yet -- see INSTALLED_APPS. It is configured now because
-# the switch itself is the convention worth fixing early: SQLite until DB_HOST
-# is set, which is the entire switch to Postgres, exactly as homeschool-lms
-# does it, so an operator does not have to hold two ideas about how these
-# projects are configured.
+# Read for the first time with this commit -- see INSTALLED_APPS. The switch
+# itself was fixed early on purpose: SQLite until DB_HOST is set, which is the
+# entire switch to Postgres, exactly as homeschool-lms does it, so an operator
+# does not have to hold two ideas about how these projects are configured.
+#
+# §A settles Postgres for this project rather than SQLite, for JSONB and real
+# full-text search. Neither is needed by `accounts`, so development stays on
+# SQLite and the first thing that needs them is the thing that should force
+# the issue.
 if env('DB_HOST'):
     DATABASES = {'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -154,18 +192,61 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+# THE MANIFEST IS A DEPLOYMENT ARTEFACT, AND TESTS MUST NOT NEED ONE.
+#
+# `CompressedManifestStaticFilesStorage` rewrites every {% static %} to a
+# hashed filename read out of `staticfiles.json`, which `collectstatic`
+# writes. If a name is not in that manifest it raises rather than guessing --
+# which is exactly what you want in production, where a missing entry means a
+# broken asset somebody should hear about immediately.
+#
+# It is exactly what you do not want under test. `collectstatic` has not run,
+# so the manifest does not exist, so EVERY test that renders a template
+# extending base.html dies with "Missing staticfiles manifest entry for
+# css/site.css" -- eight of the first twenty-three tests this project ever
+# had, none of them about static files.
+#
+# This was here before `accounts` was; the repository simply had no tests to
+# trip over it, and the first ones did so immediately.
+#
+# Two ways to fix it are worse than this one. Relaxing `manifest_strict`
+# globally would carry the loose behaviour into production and hide the
+# broken-asset error the strict version exists to raise. Overriding STORAGES
+# in each test class puts the fix in the place that has to be remembered,
+# which is how the second test file gets it wrong.
+TESTING = 'test' in sys.argv
+
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        'BACKEND': (
+            'whitenoise.storage.CompressedStaticFilesStorage' if TESTING
+            else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
     },
 }
+
+# ...and the same run warns "No directory at: .../staticfiles/" for a related
+# reason. WhiteNoise defaults `autorefresh` to `settings.DEBUG`, and Django's
+# test runner forces DEBUG to False, so under test the middleware eagerly
+# scans STATIC_ROOT at startup -- a directory `collectstatic` writes and no
+# checkout has. Autorefresh resolves each request against the filesystem
+# instead of that startup scan, which is the right behaviour for a tree whose
+# static files change under you, and which no deployment ever sees.
+if TESTING:
+    WHITENOISE_AUTOREFRESH = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOG_DIR = Path(env('LOG_DIR', BASE_DIR / 'logs'))
 
 if not DEBUG:
+    # Session and CSRF cookies are new here, and so are these two lines. A
+    # cookie that authenticates somebody must not travel in clear text, and
+    # the setting that stops it is not on by default.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

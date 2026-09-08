@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% comment %}
+The shared frame for the three account forms. They differ in a heading, a
+sentence and a button, and three near-identical pages would drift the first
+time one of them was touched.
+
+Plain markup on the marketing site's own stylesheet rather than a second set
+of form styles: these pages are read by somebody who arrived from the front
+page, and looking like a different product at the moment they hand over a
+password is not a good first impression.
+{% endcomment %}
+
+{% block content %}
+<main class="wrap account-page">
+  <h1>{% block heading %}{% endblock %}</h1>
+  {% block intro %}{% endblock %}
+
+  <form method="post" class="account-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      {% comment %}
+      A DIV, NOT A <p>, AND A HAND-WRITTEN LABEL RATHER THAN `label_tag`.
+
+      Both were <p> and `label_tag` first, and both were wrong on the page
+      rather than in the source. Django renders the password rules as a
+      <ul>, and an HTML parser closes an open <p> the moment it meets one --
+      so the list broke out of the paragraph AND out of the .helptext span
+      around it, and rendered full-width at body size in the middle of the
+      form, styled by nothing. Invalid nesting does not fail; it relocates.
+
+      `label_tag` appends LABEL_SUFFIX, which is a colon, to every label on
+      the site including the checkbox's sentence. Setting `label_suffix` on
+      each form would leave the login form -- which is Django's, not ours --
+      as the one that still has them.
+      {% endcomment %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field.errors }}
+        {{ field }}
+        {% if field.help_text %}
+          <span class="helptext">{{ field.help_text }}</span>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit">{% block submit %}Save{% endblock %}</button>
+  </form>
+
+  {% block after %}{% endblock %}
+</main>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "accounts/_form_page.html" %}
+
+{% block title %}Sign in &mdash; Milepost{% endblock %}
+{% block heading %}Sign in{% endblock %}
+{% block submit %}Sign in{% endblock %}
+
+{% block after %}
+  <p>No account yet? <a href="{% url 'sign_up' %}">Create one</a>.</p>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "accounts/_form_page.html" %}
+
+{% block title %}Create an account &mdash; Milepost{% endblock %}
+{% block heading %}Create an account{% endblock %}
+
+{% block intro %}
+  {% comment %}
+  Says who this is for before asking for anything. A parent looking for a
+  login for their eight-year-old should find that out here rather than after
+  creating one -- see §4.4.7 and the note in accounts/models.py.
+  {% endcomment %}
+  <p class="lede">
+    A Milepost account is for sharing and reviewing course plans with other
+    families. You do not need one to use Milepost with your own children.
+  </p>
+{% endblock %}
+
+{% block submit %}Create account{% endblock %}
+
+{% block after %}
+  <p>Already have one? <a href="{% url 'login' %}">Sign in</a>.</p>
+{% endblock %}

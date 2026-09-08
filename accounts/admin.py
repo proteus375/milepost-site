@@ -14,14 +14,22 @@ from .models import Account
 @admin.register(Account)
 class AccountAdmin(UserAdmin):
     ordering = ['handle']
-    list_display = ['handle', 'email', 'display_name', 'date_joined', 'is_active']
+    list_display = [
+        'handle', 'email', 'display_name', 'date_joined', 'is_active',
+        'is_public',
+    ]
     search_fields = ['handle', 'email', 'display_name']
     # `handle` is editable here and not by the person themselves, on purpose:
     # support fixing a typo is a different act from somebody quietly vacating
     # an address other people have linked to. See ProfileForm.
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Public identity', {'fields': ('handle', 'display_name')}),
+        # `is_public` sits with the identity rather than with the
+        # permissions, because it is not one: it says whether there is a
+        # page at /people/<handle>/, not what this person may do.
+        ('Public identity', {
+            'fields': ('handle', 'display_name', 'is_public'),
+        }),
         ('Terms', {'fields': ('terms_accepted_at',)}),
         ('Permissions', {'fields': (
             'is_active', 'is_staff', 'is_superuser', 'groups',

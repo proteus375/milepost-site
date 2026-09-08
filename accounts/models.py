@@ -146,6 +146,10 @@ class AccountManager(BaseUserManager):
     def create_user(self, email, handle, password=None, **extra):
         extra.setdefault('is_staff', False)
         extra.setdefault('is_superuser', False)
+        # An ordinary account is a member, so this door publishes. The signup
+        # form does not come through here -- a ModelForm builds the instance
+        # itself -- so it says the same thing in its own `save()`.
+        extra.setdefault('is_public', True)
         return self._create(email, handle, password, **extra)
 
     def create_superuser(self, email, handle, password=None, **extra):
@@ -153,6 +157,11 @@ class AccountManager(BaseUserManager):
         extra.setdefault('is_superuser', True)
         if not extra['is_staff'] or not extra['is_superuser']:
             raise ValueError('A superuser is staff and superuser.')
+        # NOT `setdefault`. An operator account is a login and nothing else,
+        # and `createsuperuser` passes no opinion about this either way --
+        # allowing one to be overridden here would only make it possible to
+        # publish an administrator by accident. See `Account.is_public`.
+        extra['is_public'] = False
         # An operator making the first account has accepted nothing; recording
         # `now` would be a claim nobody made. See `terms_accepted_at`.
         return self._create(email, handle, password, **extra)
@@ -190,6 +199,26 @@ class Account(AbstractBaseUser, PermissionsMixin):
     # or a date of birth would be a fact about them that this product has no
     # use for.
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
+
+    # A LOGIN AND A PUBLIC PRESENCE ARE TWO DIFFERENT THINGS.
+    #
+    # This model is both the marketplace identity and the Django auth user,
+    # which means an operator running `createsuperuser` was, until this field
+    # existed, given a page at /people/<their handle>/ announcing them as a
+    # Milepost member. They had signed up for a login. Nobody involved
+    # intended to publish them.
+    #
+    # Default False, and every ordinary door sets it True: an account that
+    # arrives by a route nobody has thought about yet is private, which fails
+    # in the direction of a member wondering where their page went rather
+    # than somebody appearing on the site who never asked to.
+    is_public = models.BooleanField(
+        default=False,
+        help_text=(
+            'Whether this person has a page at /people/<handle>/. Set when '
+            'somebody signs up; staff accounts are logins, not members.'
+        ),
+    )
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

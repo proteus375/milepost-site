@@ -79,6 +79,12 @@ class SignUpForm(UserCreationForm):
     def save(self, commit=True):
         account = super().save(commit=False)
         account.terms_accepted_at = timezone.now()
+        # Signing up is the act that creates a public identity, so it is
+        # stamped in the same breath as the terms rather than left to the
+        # model default -- which is False, deliberately. See
+        # `Account.is_public`. A ModelForm builds its own instance, so this
+        # does not go through `AccountManager.create_user`.
+        account.is_public = True
         if commit:
             account.save()
         return account

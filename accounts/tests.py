@@ -295,3 +295,83 @@ class WhatTheBrowserFillsInTests(TestCase):
 
     def test_and_says_so_on_the_edit_form_too(self):
         self.assertIn('autocomplete="nickname"', str(ProfileForm()['display_name']))
+
+
+class AnOperatorIsNotAMemberTests(AccountFixture):
+    """`createsuperuser` asks for a handle, and a handle is a public address.
+
+    This model is the login and the public identity at once, so making the
+    first admin account used to publish a page announcing whoever ran the
+    command as a Milepost member. See `Account.is_public`.
+    """
+
+    def staff(self, handle='keeper'):
+        return Account.objects.create_superuser(
+            email=f'{handle}@example.com',
+            handle=handle,
+            password='a-long-enough-passphrase',
+        )
+
+    def test_a_superuser_is_not_published(self):
+        self.assertFalse(self.staff().is_public)
+
+    def test_and_cannot_be_published_by_passing_the_flag(self):
+        """`create_superuser` overrides rather than defaults.
+
+        A `setdefault` here would mean the one way to publish an
+        administrator by accident is to try to be explicit."""
+        account = Account.objects.create_superuser(
+            email='keeper@example.com',
+            handle='keeper',
+            password='a-long-enough-passphrase',
+            is_public=True,
+        )
+        self.assertFalse(account.is_public)
+
+    def test_their_page_does_not_exist(self):
+        self.staff()
+        self.assertEqual(
+            self.client.get(reverse('profile', args=['keeper'])).status_code, 404,
+        )
+
+    def test_not_even_to_themselves(self):
+        """404 for everybody, including the operator signed in as them. A
+        page nobody else can see is not a public identity, and showing it
+        only to its owner is how it quietly comes back."""
+        self.client.force_login(self.staff())
+        self.assertEqual(
+            self.client.get(reverse('profile', args=['keeper'])).status_code, 404,
+        )
+
+    def test_they_can_still_edit_and_are_not_sent_to_a_404(self):
+        self.client.force_login(self.staff())
+        response = self.client.post(
+            reverse('edit_profile'), {'display_name': 'Support'}, follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Account.objects.get(handle='keeper').display_name, 'Support')
+
+    def test_an_ordinary_account_is_published(self):
+        self.assertTrue(self.make('ada').is_public)
+
+    def test_and_so_is_one_that_signed_up(self):
+        """The form builds its own instance, so it never touches
+        `create_user` -- the two doors have to say this separately."""
+        self.client.post(reverse('sign_up'), {
+            'email': 'ada@example.com',
+            'handle': 'ada',
+            'password1': 'a-long-enough-passphrase',
+            'password2': 'a-long-enough-passphrase',
+            'confirms_adult': 'on',
+        })
+        self.assertTrue(Account.objects.get(handle='ada').is_public)
+
+    def test_unpublishing_somebody_takes_their_page_down(self):
+        """The admin can flip it, which is the moderation lever this gives
+        us before there is a moderation queue."""
+        account = self.make('ada')
+        account.is_public = False
+        account.save()
+        self.assertEqual(
+            self.client.get(reverse('profile', args=['ada'])).status_code, 404,
+        )

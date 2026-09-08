@@ -42,7 +42,10 @@ def profile(request, handle):
     Inactive accounts are a 404 rather than a page saying somebody was here.
     Whether a given handle belongs to a deactivated account is not something
     a stranger is owed, and answering it turns this into a way to enumerate
-    who has ever signed up.
+    who has ever signed up. Accounts that are not public -- staff, made by
+    `createsuperuser` -- are a 404 for the same reason and a second one: an
+    operator signed up for a login, not for a page announcing them as a
+    member.
 
     This is where reputation will appear -- see the note in models.py. It is
     built now, before there is anything to put on it, because a public
@@ -50,7 +53,9 @@ def profile(request, handle):
     achievement in that design is a thing somebody else is supposed to be
     able to see.
     """
-    person = get_object_or_404(Account, handle=handle.lower(), is_active=True)
+    person = get_object_or_404(
+        Account, handle=handle.lower(), is_active=True, is_public=True,
+    )
     return render(request, 'accounts/profile.html', {
         'person': person,
         'is_own': request.user.is_authenticated and request.user.pk == person.pk,
@@ -59,10 +64,18 @@ def profile(request, handle):
 
 @login_required
 def edit_profile(request):
-    """Change how you appear. Not who you are -- see ProfileForm."""
+    """Change how you appear. Not who you are -- see ProfileForm.
+
+    Saving lands on your public page, which is the confirmation: the new name
+    is there, in the place other people read it. An account with no public
+    page -- staff -- would land on a 404 instead, so it comes back here with
+    the saved value in the field.
+    """
     form = ProfileForm(request.POST or None, instance=request.user)
     if request.method == 'POST' and form.is_valid():
         form.save()
+        if not request.user.is_public:
+            return redirect('edit_profile')
         return redirect('profile', handle=request.user.handle)
 
     return render(request, 'accounts/edit_profile.html', {'form': form})

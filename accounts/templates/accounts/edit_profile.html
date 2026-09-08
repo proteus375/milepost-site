@@ -14,5 +14,14 @@
 {% block submit %}Save{% endblock %}
 
 {% block after %}
-  <p><a href="{% url 'profile' request.user.handle %}">See your public page</a>.</p>
+  {% comment %}
+  A staff account has no page at /people/<handle>/ -- see Account.is_public --
+  so this link would be a 404 for the one person most likely to click it while
+  checking the site works.
+  {% endcomment %}
+  {% if request.user.is_public %}
+    <p><a href="{% url 'profile' request.user.handle %}">See your public page</a>.</p>
+  {% else %}
+    <p>This account has no public page.</p>
+  {% endif %}
 {% endblock %}

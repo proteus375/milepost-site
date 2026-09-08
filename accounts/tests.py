@@ -37,11 +37,14 @@ settings.py.
 """
 
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
 from .forms import ProfileForm, SignUpForm
-from .models import Account, validate_handle
+from .models import (
+    Account, Organisation, OrganisationMembership, validate_handle,
+)
 
 
 class AccountFixture(TestCase):
@@ -375,3 +378,153 @@ class AnOperatorIsNotAMemberTests(AccountFixture):
         self.assertEqual(
             self.client.get(reverse('profile', args=['ada'])).status_code, 404,
         )
+
+
+class OrganisationFixture(AccountFixture):
+    def org(self, slug='oak-hill', name='Oak Hill Co-op'):
+        organisation = Organisation(slug=slug, name=name)
+        organisation.full_clean()
+        organisation.save()
+        return organisation
+
+
+class AnOrganisationIsAPublicNameTests(OrganisationFixture):
+    """The slug is an address, so it obeys the same rules a handle does."""
+
+    def test_it_is_stored_lowercased(self):
+        organisation = Organisation.objects.create(slug='Oak-Hill', name='Oak Hill')
+        self.assertEqual(organisation.slug, 'oak-hill')
+
+    def test_a_reserved_name_is_refused(self):
+        with self.assertRaises(ValidationError):
+            self.org(slug='admin')
+
+    def test_the_shape_is_enforced(self):
+        for bad in ['oh', 'Oak Hill', '-oak', 'oak--hill', 'oak_hill']:
+            with self.subTest(slug=bad), self.assertRaises(ValidationError):
+                self.org(slug=bad)
+
+    def test_two_organisations_cannot_share_one(self):
+        self.org()
+        with self.assertRaises(ValidationError):
+            self.org(name='Another Oak Hill')
+
+    def test_it_cannot_take_a_name_a_person_already_has(self):
+        """One namespace across both kinds of thing.
+
+        Nothing technical stops it -- the names live in different tables at
+        different addresses. What stops it is that attribution renders an
+        owner and a contributor side by side, and a co-op is exactly what
+        somebody would register a look-alike name for."""
+        self.make('oakhill')
+        with self.assertRaises(ValidationError):
+            self.org(slug='oakhill')
+
+    def test_and_a_person_cannot_take_one_an_organisation_has(self):
+        """The mirror. Checking one direction only means whichever kind of
+        thing is created second wins, which is not a rule."""
+        self.org(slug='oakhill')
+        with self.assertRaises(ValidationError):
+            self.make('oakhill')
+
+    def test_it_is_active_until_somebody_says_otherwise(self):
+        self.assertTrue(self.org().is_active)
+
+    def test_public_name_is_the_name(self):
+        """The same property as an Account's, so a template rendering
+        attribution does not have to know which kind of owner it holds."""
+        self.assertEqual(self.org().public_name, 'Oak Hill Co-op')
+
+
+class MembershipTests(OrganisationFixture):
+    def test_somebody_added_can_publish(self):
+        organisation, ada = self.org(), self.make('ada')
+        organisation.add_member(ada)
+        self.assertTrue(organisation.can_publish(ada))
+
+    def test_and_somebody_who_is_not_a_member_cannot(self):
+        self.assertFalse(self.org().can_publish(self.make('ada')))
+
+    def test_the_default_is_publisher_not_owner(self):
+        organisation, ada = self.org(), self.make('ada')
+        membership = organisation.add_member(ada)
+        self.assertEqual(membership.role, OrganisationMembership.Role.PUBLISHER)
+
+    def test_who_granted_it_is_recorded(self):
+        organisation = self.org()
+        priya, ada = self.make('priya'), self.make('ada')
+        membership = organisation.add_member(ada, added_by=priya)
+        self.assertEqual(membership.added_by, priya)
+
+    def test_and_survives_that_person_leaving(self):
+        """SET_NULL, not CASCADE. The fact that somebody was added to a
+        co-op is not undone by the person who added them closing their
+        account."""
+        organisation = self.org()
+        priya, ada = self.make('priya'), self.make('ada')
+        organisation.add_member(ada, added_by=priya)
+        priya.delete()
+
+        membership = organisation.memberships.get(account=ada)
+        self.assertIsNone(membership.added_by)
+
+    def test_nobody_is_a_member_twice(self):
+        """Enforced by the database, so a second row cannot appear between
+        a check and an insert. `atomic` keeps the broken transaction from
+        taking the rest of the test with it."""
+        organisation, ada = self.org(), self.make('ada')
+        organisation.add_member(ada)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            organisation.add_member(ada, role=OrganisationMembership.Role.OWNER)
+
+    def test_the_organisation_outlives_a_member(self):
+        """The whole reason this model exists. A departing member takes
+        their membership row and nothing else."""
+        organisation, ada = self.org(), self.make('ada')
+        organisation.add_member(ada)
+        ada.delete()
+
+        organisation.refresh_from_db()
+        self.assertEqual(organisation.memberships.count(), 0)
+
+
+class TheLastOwnerTests(OrganisationFixture):
+    """An organisation with no owner is a set of listings nobody can maintain.
+
+    The precedent is `students.remove_guardian` in the LMS, which refuses for
+    the same reason in a different shape: a child with no guardian is a record
+    nobody can manage. Both failures are quiet, and both are found by somebody
+    who needed to act and could not.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.organisation = self.org()
+        self.priya = self.make('priya')
+        self.organisation.add_member(
+            self.priya, role=OrganisationMembership.Role.OWNER,
+        )
+
+    def test_the_only_owner_cannot_be_removed(self):
+        with self.assertRaises(ValidationError):
+            self.organisation.remove_member(self.priya)
+        self.assertEqual(self.organisation.owners().count(), 1)
+
+    def test_but_can_be_once_there_is_another(self):
+        ada = self.make('ada')
+        self.organisation.add_member(ada, role=OrganisationMembership.Role.OWNER)
+        self.organisation.remove_member(self.priya)
+
+        self.assertEqual(self.organisation.owners().count(), 1)
+        self.assertFalse(self.organisation.can_publish(self.priya))
+
+    def test_a_publisher_is_not_an_owner_for_this_purpose(self):
+        """Adding somebody who cannot manage membership does not make the
+        owner removable. This is the mistake the refusal exists to catch."""
+        self.organisation.add_member(self.make('ada'))
+        with self.assertRaises(ValidationError):
+            self.organisation.remove_member(self.priya)
+
+    def test_removing_somebody_who_is_not_a_member_is_not_an_error(self):
+        self.organisation.remove_member(self.make('stranger'))
+        self.assertEqual(self.organisation.memberships.count(), 1)

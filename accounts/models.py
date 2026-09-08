@@ -241,6 +241,7 @@ class Account(AbstractBaseUser, PermissionsMixin):
         super().clean()
         self.email = (self.email or '').strip().lower()
         self.handle = (self.handle or '').strip().lower()
+        refuse_a_taken_public_name(self.handle, field='handle')
 
     def save(self, *args, **kwargs):
         # Normalised here as well as in the manager, because `save()` is the
@@ -266,3 +267,214 @@ class Account(AbstractBaseUser, PermissionsMixin):
     @property
     def has_accepted_terms(self):
         return self.terms_accepted_at is not None
+
+
+def refuse_a_taken_public_name(name, *, field):
+    """One namespace of public names, shared by people and organisations.
+
+    Handles and organisation slugs live at different addresses, so nothing
+    technical stops `oakhill` being both a person and a co-op. What stops it
+    is that attribution renders both -- "Published by oakhill, contributed by
+    oakhill" -- and that a co-op is exactly the kind of thing somebody would
+    register a look-alike name for. This is the same argument as
+    RESERVED_HANDLES, which already refuses names that would read as coming
+    from Milepost itself; a name that reads as coming from somebody else is
+    the same problem with a different victim.
+
+    A `clean()` check rather than a database constraint, because the two names
+    live in different tables and no constraint spans them. So it is enforced
+    wherever `full_clean` runs -- every form, and `AccountManager`, which
+    calls it deliberately -- and not against a racing pair of inserts. The
+    unique index on each table still stops the collision that matters most,
+    which is two of the same kind.
+    """
+    if not name:
+        return
+    if field == 'handle':
+        taken = Organisation.objects.filter(slug=name).exists()
+    else:
+        taken = Account.objects.filter(handle=name).exists()
+    if taken:
+        raise ValidationError({field: 'That name is already taken.'})
+
+
+class Organisation(models.Model):
+    """A co-op's public identity, which outlives the people who run it.
+
+    WHY THIS EXISTS BEFORE THERE IS ANYTHING TO OWN. §C.4 of the design
+    document is blunt about it: "listings need an owner that outlives any
+    individual", and "the listing's owner shape is in the first migration".
+    A listing owned only by whoever pressed Publish carries a departed
+    organiser's name, cannot be maintained by the co-op that wrote it, and
+    has no owner at all once that person deletes their account. Adding an
+    alternative owner type afterwards means migrating every published listing
+    and re-deciding attribution for content people are already linking to.
+
+    So this lands before `catalog` rather than with it. There is nothing to
+    publish yet, which is the point: the shape has to be right before the
+    first thing depends on it.
+
+    MINIMAL, DELIBERATELY. §C.4.6 separates what must be settled now from
+    what can follow: id, slug, name and is_active are the must; a logo and a
+    description are profile richness that adds a column later and breaks
+    nothing. This model is the first list and stops there.
+    """
+
+    #: The same rules as a person's handle, and the same validator function --
+    #: which is named `validate_handle` and stays named that, because
+    #: migration 0001 references it by that path and renaming it would break
+    #: a shipped migration to make a docstring read better.
+    slug = models.SlugField(
+        max_length=HANDLE_MAX,
+        unique=True,
+        validators=[validate_handle],
+        help_text=(
+            'The address this organisation is linked at. It must survive '
+            'every membership change, so it is not something a member edits.'
+        ),
+    )
+    name = models.CharField(
+        max_length=120,
+        help_text='What people see. A co-op’s name, not an abbreviation.',
+    )
+    # Deactivated rather than deleted, on the precedent the LMS already set
+    # twice: an IntegrationToken is revoked and a Material is archived. A
+    # co-op that winds down still published things, and those listings have to
+    # keep an owner or they become unmaintainable and untakedownable.
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    # `through_fields` is required, not optional, and the reason is worth
+    # keeping: OrganisationMembership has TWO foreign keys to Account --
+    # `account`, who the membership is for, and `added_by`, who granted it --
+    # so "the members of this organisation" is ambiguous until it is said
+    # which one it means. Django refuses to guess (fields.E335), which is the
+    # right call: guessing wrong here would silently list the people who
+    # granted memberships as the people who hold them.
+    members = models.ManyToManyField(
+        'Account',
+        through='OrganisationMembership',
+        through_fields=('organisation', 'account'),
+        related_name='organisations',
+    )
+
+    class Meta:
+        ordering = ['slug']
+
+    def __str__(self):
+        return self.slug
+
+    def clean(self):
+        super().clean()
+        self.slug = (self.slug or '').strip().lower()
+        refuse_a_taken_public_name(self.slug, field='slug')
+
+    def save(self, *args, **kwargs):
+        self.slug = (self.slug or '').strip().lower()
+        super().save(*args, **kwargs)
+
+    @property
+    def public_name(self):
+        """The same property name as an Account's, and for the same reason.
+
+        Attribution renders an owner and a contributor side by side, and the
+        template should not have to know which kind of thing it is holding.
+        """
+        return self.name.strip() or self.slug
+
+    def owners(self):
+        return self.memberships.filter(role=OrganisationMembership.Role.OWNER)
+
+    def can_publish(self, account):
+        """Both roles may publish; only an owner may accept terms for the org.
+
+        This is the person half of §C.4.3's two-layer check. The installation
+        half -- that the machine speaking is bound to this organisation --
+        belongs with `instances`, and a publish needs both.
+        """
+        return self.memberships.filter(account=account).exists()
+
+    def add_member(self, account, role=None, added_by=None):
+        return OrganisationMembership.objects.create(
+            organisation=self,
+            account=account,
+            role=role or OrganisationMembership.Role.PUBLISHER,
+            added_by=added_by,
+        )
+
+    def remove_member(self, account):
+        """Refuses to remove the last owner.
+
+        The precedent is `students.remove_guardian` in the LMS, which refuses
+        for the same reason in a different shape: a child with no guardian is
+        a record nobody can manage, and an organisation with no owner is a set
+        of listings nobody can maintain or take down. Both failures are quiet
+        and both are discovered by somebody who needed to act and could not.
+        """
+        membership = self.memberships.filter(account=account).first()
+        if membership is None:
+            return
+        if (
+            membership.role == OrganisationMembership.Role.OWNER
+            and self.owners().count() == 1
+        ):
+            raise ValidationError(
+                'An organisation must keep at least one owner. Add another '
+                'before removing this one.'
+            )
+        membership.delete()
+
+
+class OrganisationMembership(models.Model):
+    """Who may act for an organisation, who granted it, and when.
+
+    A THROUGH MODEL RATHER THAN A PLAIN MANY-TO-MANY, by the rule this
+    codebase applies wherever it picks between the two: a plain M2M is right
+    when there is nothing to record about the relationship beyond its
+    existence, and the moment there is -- who granted it, when, with what
+    remit -- it should be a through model. All three exist here.
+
+    §C.4.6 puts the roles themselves in the "can follow" column and suggests
+    starting with plain membership. They are here anyway, because the next
+    model in this sequence needs them: §C.4.7's `TermsAcceptance` says a
+    PUBLISHER cannot accept terms on the organisation's behalf, since
+    accepting them is an ownership act. Shipping without the role means adding
+    it in the very next commit, and a column added a week later is the same
+    column with a migration in between.
+    """
+
+    class Role(models.TextChoices):
+        OWNER = 'OWNER', 'Owner'
+        PUBLISHER = 'PUBLISHER', 'Publisher'
+
+    organisation = models.ForeignKey(
+        Organisation, on_delete=models.CASCADE, related_name='memberships',
+    )
+    account = models.ForeignKey(
+        'Account', on_delete=models.CASCADE,
+        related_name='organisation_memberships',
+    )
+    role = models.CharField(
+        max_length=12, choices=Role.choices, default=Role.PUBLISHER,
+    )
+    added_at = models.DateTimeField(default=timezone.now)
+    # SET_NULL, not CASCADE: the fact that somebody was added to a co-op is
+    # not undone by the person who added them closing their account. The same
+    # reasoning governs `Listing.contributed_by` and `TermsAcceptance
+    # .accepted_by` when those arrive.
+    added_by = models.ForeignKey(
+        'Account', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='memberships_granted',
+    )
+
+    class Meta:
+        ordering = ['organisation', 'account']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organisation', 'account'],
+                name='one_membership_per_account_per_organisation',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.account.handle} in {self.organisation.slug}'

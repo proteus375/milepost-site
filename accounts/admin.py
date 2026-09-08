@@ -8,7 +8,7 @@ being moderated live.
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Account
+from .models import Account, Organisation, OrganisationMembership
 
 
 @admin.register(Account)
@@ -43,3 +43,32 @@ class AccountAdmin(UserAdmin):
             'fields': ('email', 'handle', 'password1', 'password2'),
         }),
     )
+
+
+class MembershipInline(admin.TabularInline):
+    """Membership is edited from the organisation, not the other way round.
+
+    The question an operator arrives with is "who can act for this co-op",
+    and an inline on the organisation answers it in one screen. `added_by` is
+    shown and left editable: it is a historical fact, and the admin is the
+    recovery path for when the service layer has already refused something
+    that genuinely has to happen. See `Organisation.remove_member`.
+    """
+
+    model = OrganisationMembership
+    extra = 0
+    autocomplete_fields = ['account', 'added_by']
+
+
+@admin.register(Organisation)
+class OrganisationAdmin(admin.ModelAdmin):
+    ordering = ['slug']
+    list_display = ['slug', 'name', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['slug', 'name']
+    inlines = [MembershipInline]
+    # `slug` is editable here and nowhere else, on the same reasoning as
+    # `handle` above: support fixing a typo is a different act from an
+    # organisation quietly vacating an address other people have linked to.
+    fields = ['slug', 'name', 'is_active', 'created_at']
+    readonly_fields = ['created_at']

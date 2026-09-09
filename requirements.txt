@@ -8,6 +8,17 @@ Django>=5.2,<6.3
 # Reads .env into the environment at startup. Pinned to the version
 # homeschool-lms pins, so the two projects cannot drift into different
 # behaviour over something as load-bearing as which settings get read.
+# The shared reader for `courselms.course/1` and `courselms.coursepack/1`,
+# which is how an uploaded pack gets validated here. §D says this project
+# "re-validates independently with its own copy of the parser, trusting
+# nothing" -- and one version-pinned package is that independence: this
+# project can run an older version than an instance ships, and what it cannot
+# do is quietly run a subtly different parser nobody decided on.
+#
+# Editable while both repositories are checked out side by side; a pinned git
+# tag the moment this is deployed.
+-e ../courselms-format
+
 python-dotenv==1.2.2
 
 # Postgres. Not needed until there are models -- listed now because §A settles

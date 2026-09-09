@@ -239,6 +239,30 @@ STORAGES = {
 if TESTING:
     WHITENOISE_AUTOREFRESH = True
 
+# UPLOADED PACKS, AND WHY THERE IS NO MEDIA_URL
+#
+# A course pack is a file somebody else wrote. `MEDIA_ROOT` gives it somewhere
+# to live; the absence of `MEDIA_URL` is the point of this block.
+#
+# Serving uploads from a URL prefix means the web server hands out whatever is
+# under that directory, to whoever asks, without the application seeing the
+# request. For content that is entitlement-gated (§B.3: a download is checked
+# per household against a fresh token) that is not a hardening detail, it is
+# the whole control -- a guessable path would be the entitlement check
+# bypassed by typing a URL.
+#
+# So packs are streamed by a view that decides, and nothing serves this
+# directory directly. It sits outside STATIC_ROOT for the same reason:
+# `collectstatic` must never sweep an upload into the public tree.
+MEDIA_ROOT = Path(env('MEDIA_ROOT', BASE_DIR / 'uploads'))
+
+# A pack is capped at 256MB by the format itself (`MAX_UNCOMPRESSED`), but
+# Django reads a file into memory before anything looks at it. These two keep
+# a large upload on disk and refuse an absurd one before the format ever sees
+# it -- cheap refusals first, expensive ones after.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOG_DIR = Path(env('LOG_DIR', BASE_DIR / 'logs'))

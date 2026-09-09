@@ -17,4 +17,7 @@ urlpatterns = [
     path('plans/yours/', views.your_plans, name='your_plans'),
     path('plans/<slug:slug>/', views.listing, name='listing'),
     path('plans/<slug:slug>/edit/', views.edit_plan, name='edit_plan'),
+    path('plans/<slug:slug>/pack/', views.upload_pack, name='upload_pack'),
+    path('plans/<slug:slug>/pack/download/', views.download_pack,
+         name='download_pack'),
 ]

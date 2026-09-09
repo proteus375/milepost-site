@@ -8,13 +8,18 @@ exercised is a comment with a syntax error waiting in it, and the first thing
 to find out is whether it reaches the database at all.
 """
 
+import tempfile
+
+from courselms_format import COURSE_FORMAT, build_from_document
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import Account, Organisation, OrganisationMembership
+from catalog.packs import attach
 from catalog.models import (
     CONTENT_LICENCE, PUBLISHER_TERMS_VERSION, Listing, Subject,
     TermsAcceptance, accept_terms, has_accepted,
@@ -603,3 +608,237 @@ class WhatADraftSaysAboutItselfTests(CatalogFixture):
         response = self.client.get(listing.get_absolute_url())
         self.assertNotContains(response, 'Published by')
         self.assertContains(response, 'Will be published by')
+
+
+def a_course_document(name='A Year of Botany'):
+    return {
+        'format': COURSE_FORMAT,
+        'course': {'code': 'BOT1', 'name': name, 'description': '',
+                   'syllabus': ''},
+        'modules': [{'title': 'Roots', 'order': 0, 'pages': [
+            {'key': 'm0-p0', 'title': 'Taproots', 'order': 0, 'blocks': [
+                {'type': 'RICH_TEXT', 'order': 0,
+                 'content': {'html': '<p>Down.</p>'}},
+            ]},
+            {'key': 'm0-p1', 'title': 'Fibrous', 'order': 1, 'blocks': []},
+        ]}],
+    }
+
+
+def a_pack(document=None, media=()):
+    return build_from_document(
+        document or a_course_document(),
+        owner={'handle': 'somebody-else-entirely'},
+        licence='milepost-1.0',
+        media=media,
+    )
+
+
+def an_upload(data, name='course.coursepack'):
+    return SimpleUploadedFile(name, data, content_type='application/zip')
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class UploadingAPackTests(CatalogFixture):
+    """The pack is checked by `courselms_format`, which is the point.
+
+    Nothing here re-tests zip bombs or path traversal -- that suite lives in
+    the package, runs without a database, and is the same code an instance
+    uses to build what it sends. These test the seam: that a refusal reaches
+    the person who uploaded the file, that a refused pack changes nothing,
+    and that what gets recorded is what the archive actually contained.
+    """
+
+    def draft(self, owner=None):
+        return self.plan(owner_account=owner or self.person())
+
+    def test_a_valid_pack_is_attached_and_described(self):
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        self.client.post(reverse('upload_pack', args=[listing.slug]),
+                         {'pack': an_upload(a_pack())})
+
+        listing.refresh_from_db()
+        self.assertTrue(listing.has_pack)
+        self.assertEqual(listing.pack_course_name, 'A Year of Botany')
+        self.assertEqual(listing.pack_module_count, 1)
+        self.assertEqual(listing.pack_page_count, 2)
+        self.assertEqual(listing.pack_media_count, 0)
+        self.assertIsNotNone(listing.pack_uploaded_at)
+
+    def test_media_in_the_pack_is_counted(self):
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        png = b'\x89PNG\r\n\x1a\n' + b'pixels'
+        self.client.post(reverse('upload_pack', args=[listing.slug]),
+                         {'pack': an_upload(a_pack(media=[png]))})
+
+        listing.refresh_from_db()
+        self.assertEqual(listing.pack_media_count, 1)
+
+    def test_the_uploader_does_not_name_the_file(self):
+        """An uploaded filename is attacker-controlled text that would
+        otherwise become a path on this server. Not using it is nothing to
+        get wrong."""
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        self.client.post(
+            reverse('upload_pack', args=[listing.slug]),
+            {'pack': an_upload(a_pack(), name='../../etc/passwd')},
+        )
+
+        listing.refresh_from_db()
+        self.assertNotIn('passwd', listing.pack.name)
+        self.assertTrue(listing.pack.name.startswith('packs/'))
+        self.assertTrue(listing.pack.name.endswith('.coursepack'))
+
+    def test_the_manifest_is_recorded_but_not_believed(self):
+        """A manifest names an owner, written by whoever built the archive.
+        The listing's owner is the one this site established at sign-in."""
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        self.client.post(reverse('upload_pack', args=[listing.slug]),
+                         {'pack': an_upload(a_pack())})
+
+        listing.refresh_from_db()
+        self.assertEqual(listing.pack_manifest['owner'],
+                         {'handle': 'somebody-else-entirely'})
+        self.assertEqual(listing.owner, ada)
+
+    def test_something_that_is_not_a_pack_is_refused_in_the_form(self):
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        response = self.client.post(
+            reverse('upload_pack', args=[listing.slug]),
+            {'pack': an_upload(b'this is not a zip')},
+        )
+
+        listing.refresh_from_db()
+        self.assertFalse(listing.has_pack)
+        self.assertContains(response, 'not a course pack')
+
+    def test_and_a_refused_pack_leaves_an_existing_one_alone(self):
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        self.client.post(reverse('upload_pack', args=[listing.slug]),
+                         {'pack': an_upload(a_pack())})
+        listing.refresh_from_db()
+        first = listing.pack.name
+
+        self.client.post(reverse('upload_pack', args=[listing.slug]),
+                         {'pack': an_upload(b'rubbish')})
+        listing.refresh_from_db()
+        self.assertEqual(listing.pack.name, first)
+
+    def test_a_document_the_parser_refuses_is_refused_here_too(self):
+        """The wrapper does not weaken what it wraps -- and this project
+        runs the same parser rather than a copy of it."""
+        document = a_course_document()
+        document['modules'][0]['pages'][0]['blocks'][0]['type'] = 'MISCHIEF'
+        ada = self.person()
+        listing = self.draft(ada)
+        self.client.force_login(ada)
+        self.client.post(reverse('upload_pack', args=[listing.slug]),
+                         {'pack': an_upload(a_pack(document))})
+
+        listing.refresh_from_db()
+        self.assertFalse(listing.has_pack)
+
+    def test_a_stranger_cannot_upload_to_your_draft(self):
+        listing = self.draft(self.person('ada'))
+        self.client.force_login(self.person('priya'))
+        response = self.client.post(
+            reverse('upload_pack', args=[listing.slug]),
+            {'pack': an_upload(a_pack())},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_published_listing_does_not_take_a_new_pack(self):
+        """What people downloaded is what the manifest said it was.
+        Swapping the archive behind a version somebody already holds is the
+        failure `version` exists to prevent."""
+        ada = self.person()
+        accept_terms(ada, accepted_by=ada)
+        listing = self.plan(owner_account=ada).publish(by=ada)
+        self.client.force_login(ada)
+
+        response = self.client.post(
+            reverse('upload_pack', args=[listing.slug]),
+            {'pack': an_upload(a_pack())},
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class DownloadingAPackTests(CatalogFixture):
+    def with_pack(self, owner):
+        listing = self.plan(owner_account=owner)
+        return attach(listing, a_pack())
+
+    def test_the_owner_can_download_their_own(self):
+        ada = self.person()
+        listing = self.with_pack(ada)
+        self.client.force_login(ada)
+
+        response = self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment', response['Content-Disposition'])
+
+    def test_a_listing_with_no_pack_has_nothing_to_download(self):
+        ada = self.person()
+        listing = self.plan(owner_account=ada)
+        self.client.force_login(ada)
+        self.assertEqual(
+            self.client.get(reverse('download_pack', args=[listing.slug])).status_code,
+            404,
+        )
+
+    def test_a_stranger_cannot_download_a_published_pack_yet(self):
+        """Deliberate, not forgotten. Entitlement is checked per household
+        against a token (§B.3); there is no billing app, so there is no way
+        to tell an entitled reader from any other signed-in one, and serving
+        published packs to whoever asks would be giving away other people's
+        work."""
+        ada = self.person('ada')
+        accept_terms(ada, accepted_by=ada)
+        listing = self.with_pack(ada)
+        listing.publish(by=ada)
+
+        self.client.force_login(self.person('priya'))
+        self.assertEqual(
+            self.client.get(reverse('download_pack', args=[listing.slug])).status_code,
+            404,
+        )
+
+    def test_nor_can_somebody_signed_out(self):
+        ada = self.person()
+        listing = self.with_pack(ada)
+        response = self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertIn(reverse('login'), response.url)
+
+    def test_a_co_op_member_can_download_the_co_ops_pack(self):
+        priya, ada = self.person('priya'), self.person('ada')
+        organisation = self.co_op(owner=priya)
+        organisation.add_member(ada)
+        listing = attach(self.plan(owner_organisation=organisation), a_pack())
+
+        self.client.force_login(ada)
+        self.assertEqual(
+            self.client.get(reverse('download_pack', args=[listing.slug])).status_code,
+            200,
+        )
+
+    def test_the_listing_page_says_what_is_in_the_pack(self):
+        ada = self.person()
+        listing = self.with_pack(ada)
+        self.client.force_login(ada)
+
+        response = self.client.get(listing.get_absolute_url())
+        self.assertContains(response, 'A Year of Botany')
+        self.assertContains(response, '1 section, 2 pages')

@@ -51,6 +51,8 @@ from django.utils import timezone
 
 from accounts.models import Account, Organisation, OrganisationMembership
 
+from .packs import pack_path
+
 #: The publisher terms in force. Version-stamped rather than a boolean,
 #: because §C.4.7 is explicit that what has to be stored is "not a boolean but
 #: which version was accepted, by whom, and when" -- terms change, and a
@@ -281,6 +283,31 @@ class Listing(models.Model):
         related_name='contributions',
     )
 
+    # --- the pack, and what it turned out to contain ----------------------
+    # Validated by `catalog.packs` before it is written, so a listing never
+    # holds an archive nobody has opened. Blank until somebody uploads one:
+    # a plan can be described before it is delivered, which is the state
+    # every listing starts in.
+    pack = models.FileField(upload_to=pack_path, blank=True)
+    pack_sha256 = models.CharField(max_length=64, blank=True)
+    pack_bytes = models.PositiveBigIntegerField(null=True, blank=True)
+    pack_uploaded_at = models.DateTimeField(null=True, blank=True)
+    # WHAT THE PACK CLAIMED, NOT WHAT IS TRUE. A manifest names an owner, and
+    # that name is written by whoever built the archive. The listing's owner
+    # is the one this site established when somebody signed in; verifying that
+    # the manifest's identity really is linked to the installation that sent
+    # it is §D's step 4, and it needs a machine channel that does not exist.
+    # Kept because provenance somebody asserted is still evidence.
+    pack_manifest = models.JSONField(null=True, blank=True)
+
+    # STORED RATHER THAN COMPUTED. Reopening a zip to render a page would put
+    # an archive parse on the path of every anonymous page view, which is a
+    # denial of service somebody else gets to schedule.
+    pack_course_name = models.CharField(max_length=200, blank=True)
+    pack_module_count = models.PositiveIntegerField(default=0)
+    pack_page_count = models.PositiveIntegerField(default=0)
+    pack_media_count = models.PositiveIntegerField(default=0)
+
     version = models.CharField(max_length=20, default='1')
     licence = models.CharField(max_length=40, default=CONTENT_LICENCE)
     terms_version = models.CharField(
@@ -337,6 +364,29 @@ class Listing(models.Model):
     @property
     def is_published(self):
         return self.status == self.Status.PUBLISHED
+
+    @property
+    def has_pack(self):
+        return bool(self.pack)
+
+    @property
+    def pack_contents(self):
+        """What is in the pack, in a sentence, or None.
+
+        Reads the stored counts. Nothing here opens the archive -- see the
+        note on those fields.
+        """
+        if not self.has_pack:
+            return None
+        parts = [
+            f'{self.pack_module_count} section' + ('' if self.pack_module_count == 1 else 's'),
+            f'{self.pack_page_count} page' + ('' if self.pack_page_count == 1 else 's'),
+        ]
+        if self.pack_media_count:
+            parts.append(
+                f'{self.pack_media_count} image' + ('' if self.pack_media_count == 1 else 's')
+            )
+        return ', '.join(parts)
 
     @property
     def grade_range(self):

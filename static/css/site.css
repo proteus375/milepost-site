@@ -558,3 +558,40 @@
     color: var(--muted); font-size: .92rem;
   }
   .plan-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: .7rem; }
+
+  /* --- the pack on a listing --------------------------------------
+     Set apart from the description above it by a rule rather than a card:
+     it is the same page talking about the same plan, not a second object.
+     --------------------------------------------------------------- */
+  .plan-pack {
+    margin-top: 2.5rem; padding-top: 1.75rem;
+    border-top: 1px solid var(--rule);
+  }
+  .plan-pack h2 { font-size: 1.15rem; }
+  .plan-pack-facts { margin-top: .6rem; color: var(--ink-soft); }
+  .plan-pack .account-form { margin-top: 1.25rem; }
+  /* A FILE INPUT IS A NATIVE CONTROL WEARING SOMEBODY ELSE'S CLOTHES.
+     It cannot be replaced without hiding it behind a label and rebuilding
+     the keyboard behaviour, which is a lot of ways to get worse. But its
+     button half is styleable, so that gets the same treatment as every other
+     button on the page and the filename beside it is left alone -- which is
+     the part the browser is actually better at rendering than we would be. */
+  .plan-pack input[type="file"] {
+    font: inherit; color: var(--ink-soft);
+    width: 100%; padding: .55rem 0;
+  }
+  .plan-pack input[type="file"]::file-selector-button {
+    margin-right: .9rem;
+    padding: .5rem 1.1rem; border-radius: 999px;
+    border: 1.5px solid var(--rule-strong);
+    background: var(--surface); color: var(--ink);
+    font: inherit; font-weight: 500; cursor: pointer;
+  }
+  .plan-pack input[type="file"]::file-selector-button:hover {
+    border-color: var(--green-action); color: var(--green-action);
+  }
+  .plan-pack .plan-note { margin-top: .6rem; padding-top: 0; border-top: 0; }
+  /* Two action rows in a row, each claiming 2rem above it, left about seventy
+     pixels of nothing between the pack's button and the page's. The one
+     inside the section belongs to the section. */
+  .plan-pack .plan-actions { margin-top: 1.25rem; }

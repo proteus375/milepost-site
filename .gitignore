@@ -10,6 +10,8 @@ db.sqlite3
 logs/
 media/
 staticfiles/
+# Uploaded course packs -- somebody else's files, never in the repository.
+uploads/
 
 # ---- Python ----
 __pycache__/

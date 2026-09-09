@@ -34,14 +34,55 @@
     <div class="plan-body">{{ plan.description|linebreaks }}</div>
   {% endif %}
 
-  {% comment %}
-  No download, because there is nothing to download: a listing does not carry
-  its pack yet. Said here rather than left to be inferred from the absence of
-  a button.
-  {% endcomment %}
-  <p class="plan-note">
-    This plan has no course pack attached yet, so there is nothing to download.
-  </p>
+  <section class="plan-pack">
+    {% if plan.has_pack %}
+      <h2>The course pack</h2>
+      <p class="plan-pack-facts">
+        <strong>{{ plan.pack_course_name }}</strong> &mdash; {{ plan.pack_contents }}.
+      </p>
+      {% comment %}
+      A download link only for people who could replace the file anyway.
+      Entitlement is checked per household against a token (§B.3) and there
+      is no billing app yet, so there is no way to tell an entitled reader
+      from any other signed-in one -- and serving published packs to whoever
+      asks would be giving away other people's work rather than shipping an
+      unfinished feature. The sentence below says so instead of leaving a
+      missing button to be interpreted.
+      {% endcomment %}
+      {% if can_edit %}
+        <p class="plan-actions">
+          <a class="btn btn-ghost" href="{% url 'download_pack' plan.slug %}">Download the pack</a>
+        </p>
+      {% else %}
+        <p class="plan-note">
+          Downloading shared packs is not open yet.
+        </p>
+      {% endif %}
+    {% elif can_edit %}
+      <h2>Add the course pack</h2>
+      <p class="plan-note">
+        Export the course from Milepost and upload the file here. It is
+        checked before anything is stored, and a plan can be described
+        without one.
+      </p>
+      <form method="post" enctype="multipart/form-data"
+            action="{% url 'upload_pack' plan.slug %}" class="account-form">
+        {% csrf_token %}
+        {{ pack_form.non_field_errors }}
+        <div class="field">
+          <label for="{{ pack_form.pack.id_for_label }}">{{ pack_form.pack.label }}</label>
+          {{ pack_form.pack.errors }}
+          {{ pack_form.pack }}
+          <span class="helptext">{{ pack_form.pack.help_text }}</span>
+        </div>
+        <button type="submit">Upload</button>
+      </form>
+    {% else %}
+      <p class="plan-note">
+        This plan has no course pack attached, so there is nothing to download.
+      </p>
+    {% endif %}
+  </section>
 
   {% if can_edit %}
     <p class="plan-actions"><a class="btn btn-ghost" href="{% url 'edit_plan' plan.slug %}">Edit</a></p>

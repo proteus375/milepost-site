@@ -5,6 +5,7 @@ from django.utils.text import slugify
 
 from accounts.models import Organisation
 
+from . import packs
 from .models import GRADE_MAX, GRADE_MIN, Listing, grade_label
 
 GRADE_CHOICES = [(n, grade_label(n)) for n in range(GRADE_MIN, GRADE_MAX + 1)]
@@ -114,3 +115,34 @@ class PlanForm(forms.ModelForm):
         if commit:
             listing.save()
         return listing
+
+
+class PackForm(forms.Form):
+    """The pack, checked before the page comes back.
+
+    Validating in the form rather than the view is what puts a refusal beside
+    the field instead of on an error page -- and the format's messages are
+    already written to be shown to whoever uploaded the file, so they are
+    passed through rather than replaced with something vaguer.
+
+    The bytes are kept on the form after `clean`, so the file is read once.
+    An upload is a stream; reading it twice gets nothing the second time.
+    """
+
+    pack = forms.FileField(
+        label='Course pack',
+        help_text=(
+            'The .coursepack file Milepost exports from a course. It is '
+            'checked here before anything is stored.'
+        ),
+    )
+
+    def clean_pack(self):
+        upload = self.cleaned_data['pack']
+        self.data_bytes = upload.read()
+        # Raises ValidationError, which the form renders against this field.
+        packs.inspect(self.data_bytes)
+        return upload
+
+    def attach_to(self, listing):
+        return packs.attach(listing, self.data_bytes)

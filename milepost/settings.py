@@ -267,9 +267,31 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOG_DIR = Path(env('LOG_DIR', BASE_DIR / 'logs'))
 
-if not DEBUG:
-    # Session and CSRF cookies are new here, and so are these two lines. A
-    # cookie that authenticates somebody must not travel in clear text, and
+# HARDENING THAT COSTS NOTHING, SO IT IS NEVER CONDITIONAL.
+#
+# These do not need HTTPS and do not interfere with a test client, so putting
+# them behind an `if` only creates a development environment that behaves
+# unlike the deployed one. A header that is on everywhere is a header nobody
+# has to remember.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SESSION_COOKIE_HTTPONLY = True
+X_FRAME_OPTIONS = 'DENY'
+
+# HARDENING THAT NEEDS HTTPS, WHICH A TEST RUN DOES NOT HAVE.
+#
+# `and not TESTING` is a bug fix, not a convenience. This block read
+# `if not DEBUG` alone, and DEBUG comes from `.env` -- a file every developer
+# machine has and no fresh clone does. `SECURE_SSL_REDIRECT` turns every
+# test-client request into a 301 and secure cookies are never returned over
+# the test client's http, so on a machine without an `.env` this suite failed
+# 63 of its 137 tests, none of them for a reason connected to what they test.
+# It passed here, which is exactly what made it invisible.
+#
+# The same shape as the staticfiles switch above, and for the same reason: a
+# test run is a third environment, not a variety of production, and settings
+# that assume otherwise are settings nobody can run.
+if not DEBUG and not TESTING:
+    # A cookie that authenticates somebody must not travel in clear text, and
     # the setting that stops it is not on by default.
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -278,6 +300,4 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

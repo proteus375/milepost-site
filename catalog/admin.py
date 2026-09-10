@@ -17,7 +17,7 @@ the right repair.
 
 from django.contrib import admin
 
-from .models import Listing, TermsAcceptance
+from .models import Acquisition, Listing, Review, TermsAcceptance
 
 
 @admin.register(Listing)
@@ -65,3 +65,47 @@ class TermsAcceptanceAdmin(admin.ModelAdmin):
     @admin.display(description='Accepted by')
     def subject(self, acceptance):
         return acceptance.subject
+
+
+@admin.register(Acquisition)
+class AcquisitionAdmin(admin.ModelAdmin):
+    """Read-only, because these are not opinions -- they are the record of
+    what happened, and the thing every review stands on. An operator who can
+    hand somebody an acquisition can hand somebody the right to review a plan
+    they never used, which is the abuse this model exists to prevent.
+
+    Deletable, because a genuinely mistaken row has to be removable by
+    somebody. Editable, never.
+    """
+
+    list_display = ['account', 'listing', 'version', 'acquired_at']
+    list_filter = ['acquired_at']
+    search_fields = ['account__handle', 'listing__slug']
+    autocomplete_fields = ['account', 'listing']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    """Moderation, in the smallest form that is still moderation: an operator
+    can read reviews and take one down. Not edit one -- a review is somebody
+    else's words under their own name, and changing them is worse than
+    removing them.
+    """
+
+    list_display = ['account', 'listing', 'rating', 'version_reviewed', 'created_at']
+    list_filter = ['rating', 'created_at']
+    search_fields = ['account__handle', 'listing__slug', 'body']
+    autocomplete_fields = ['account', 'listing']
+    readonly_fields = [
+        'account', 'listing', 'rating', 'body', 'version_reviewed',
+        'created_at', 'updated_at',
+    ]
+
+    def has_add_permission(self, request):
+        return False

@@ -87,5 +87,71 @@
   {% if can_edit %}
     <p class="plan-actions"><a class="btn btn-ghost" href="{% url 'edit_plan' plan.slug %}">Edit</a></p>
   {% endif %}
+
+  {% if plan.is_published %}
+  <section class="plan-reviews">
+    <h2>
+      What people said
+      {% with count=plan.reviews.count %}
+        {% if plan.average_rating %}
+          <span class="review-average">
+            {{ plan.average_rating }} out of 5, from {{ count }} review{{ count|pluralize }}
+          </span>
+        {% endif %}
+      {% endwith %}
+    </h2>
+
+    {% comment %}
+    The count sits beside the average on purpose. One review is not an
+    average, and "5.0" alone overstates a single opinion -- but hiding it
+    hides the only thing anybody has said.
+    {% endcomment %}
+
+    {% if my_review %}
+      <article class="review review--mine">
+        <p class="review-head">
+          <strong>Your review</strong> &middot; {{ my_review.get_rating_display }}
+          {% if my_review.was_edited %} &middot; edited{% endif %}
+        </p>
+        {% if my_review.body %}<p>{{ my_review.body|linebreaksbr }}</p>{% endif %}
+        <p><a href="{% url 'review_plan' plan.slug %}">Change it</a></p>
+      </article>
+    {% endif %}
+
+    {% for review in reviews %}
+      <article class="review">
+        <p class="review-head">
+          <strong>{{ review.account.public_name }}</strong> &middot; {{ review.get_rating_display }}
+          {% if review.is_of_an_older_version %}
+            &middot; <span class="review-stale">reviewed version {{ review.version_reviewed }}</span>
+          {% endif %}
+          {% if review.was_edited %} &middot; edited{% endif %}
+        </p>
+        {% if review.body %}<p>{{ review.body|linebreaksbr }}</p>{% endif %}
+      </article>
+    {% empty %}
+      {% if not my_review %}<p class="plan-note">No reviews yet.</p>{% endif %}
+    {% endfor %}
+
+    {% if review_form and not my_review %}
+      <p class="plan-actions">
+        <a class="btn btn-ghost" href="{% url 'review_plan' plan.slug %}">Write a review</a>
+      </p>
+    {% elif no_review_because %}
+      {% comment %}
+      Said rather than left blank. "You cannot review a plan you publish" and
+      "this needs a copy of the pack first" are different situations, and an
+      absent button explains neither of them.
+
+      Its own class rather than `.plan-note`, which is what an aside under a
+      heading looks like. This one follows other people's words and needs
+      room, or it reads as the last line of somebody's review -- and reaching
+      for a third `.plan-note` override would be repeating the mistake that
+      put a stray rule here in the first place.
+      {% endcomment %}
+      <p class="review-refusal">{{ no_review_because }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
 </main>
 {% endblock %}

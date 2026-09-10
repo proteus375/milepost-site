@@ -28,11 +28,11 @@ commit that adds the thing has to invent its home under time pressure.
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.http import Http404
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import PackForm, PlanForm
-from .models import Listing, Subject
+from .forms import PackForm, PlanForm, ReviewForm
+from .models import Listing, Review, Subject, may_review, record_acquisition
 
 
 def plans(request):
@@ -67,8 +67,21 @@ def listing(request, slug):
     if not plan.may_be_read_by(request.user):
         raise Http404
 
+    reviews = plan.reviews.select_related('account')
+    mine = None
+    if getattr(request.user, 'is_authenticated', False):
+        mine = reviews.filter(account=request.user).first()
+
     return render(request, 'catalog/listing.html', {
         'plan': plan,
+        'reviews': reviews.exclude(pk=mine.pk) if mine else reviews,
+        'my_review': mine,
+        # A sentence when they may not review, or None when they may. The
+        # page says which -- "you cannot review a plan you publish" and "this
+        # needs a copy of the pack first" are different situations and a
+        # missing form explains neither.
+        'no_review_because': may_review(plan, request.user),
+        'review_form': ReviewForm(instance=mine) if not may_review(plan, request.user) else None,
         'pack_form': PackForm() if not plan.is_published else None,
         # Reaching a draft at all means being allowed to -- anybody else was
         # refused above -- so on a draft, the reader is the editor.
@@ -176,8 +189,13 @@ def download_pack(request, slug):
     plan = get_object_or_404(Listing, slug=slug)
     if not plan.has_pack or not plan.may_be_read_by(request.user):
         raise Http404
-    if plan.is_published and not _may_edit(plan, request.user):
+    if plan.is_published and not plan.may_be_edited_by(request.user):
         raise Http404
+
+    # Noted before the bytes go out, so a reader who took a copy is a reader
+    # who can review it. Refused for anybody who could publish the listing --
+    # an author holding their own work is not an acquisition.
+    record_acquisition(plan, request.user)
 
     return FileResponse(
         plan.pack.open('rb'),
@@ -186,14 +204,42 @@ def download_pack(request, slug):
     )
 
 
-def _may_edit(plan, user):
-    """Whoever could change the listing. Not a permission of its own.
 
-    A published listing is readable by everybody, so `may_be_read_by` stops
-    answering the question "is this yours" the moment it goes live.
+@login_required
+def review_plan(request, slug):
+    """Write or change your review of a plan.
+
+    One view for both, because they are the same act: `may_review` already
+    decided whether this person is entitled to have an opinion on the record,
+    and whether they have said it before changes only which row is saved.
+
+    A refusal is a 403 with the reason, not a 404. Unlike a draft, the
+    existence of a published listing is not a secret -- the reader is looking
+    at it. What they are being told is that this particular person may not
+    review this particular plan, and every one of those reasons is something
+    they should hear: you publish this, you have not got a copy, you are not
+    signed in.
     """
-    if not getattr(user, 'is_authenticated', False):
-        return False
-    if plan.owner_account_id:
-        return plan.owner_account_id == user.pk
-    return plan.owner_organisation.can_publish(user)
+    plan = get_object_or_404(Listing, slug=slug)
+
+    refusal = may_review(plan, request.user)
+    if refusal:
+        return HttpResponseForbidden(refusal)
+
+    existing = Review.objects.filter(listing=plan, account=request.user).first()
+    form = ReviewForm(request.POST or None, instance=existing)
+
+    if request.method == 'POST' and form.is_valid():
+        review = form.save(commit=False)
+        review.listing = plan
+        review.account = request.user
+        # Stamped only when it is written, so an edit does not silently
+        # re-point an old opinion at a pack the author never saw.
+        if not existing:
+            review.version_reviewed = plan.version
+        review.save()
+        return redirect(plan)
+
+    return render(request, 'catalog/review_form.html', {
+        'plan': plan, 'form': form, 'is_new': existing is None,
+    })

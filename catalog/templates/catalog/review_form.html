@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_new %}Review{% else %}Edit your review of{% endif %} {{ plan.title }} &mdash; Milepost{% endblock %}
+
+{% block content %}
+<main class="wrap account-page">
+  <p class="eyebrow">{{ plan.title }}</p>
+  <h1>{% if is_new %}Write a review{% else %}Edit your review{% endif %}</h1>
+  <p class="lede">
+    Other families read these to decide whether a plan suits their children.
+    What you would change is usually more useful than what you liked.
+  </p>
+
+  <form method="post" class="account-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field.errors }}
+        {{ field }}
+        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit">{% if is_new %}Post review{% else %}Save{% endif %}</button>
+  </form>
+
+  <p><a href="{{ plan.get_absolute_url }}">Back to the plan</a>.</p>
+</main>
+{% endblock %}

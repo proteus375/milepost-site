@@ -6,7 +6,7 @@ from django.utils.text import slugify
 from accounts.models import Organisation
 
 from . import packs
-from .models import GRADE_MAX, GRADE_MIN, Listing, grade_label
+from .models import GRADE_MAX, GRADE_MIN, Listing, Review, grade_label
 
 GRADE_CHOICES = [(n, grade_label(n)) for n in range(GRADE_MIN, GRADE_MAX + 1)]
 
@@ -146,3 +146,23 @@ class PackForm(forms.Form):
 
     def attach_to(self, listing):
         return packs.attach(listing, self.data_bytes)
+
+
+class ReviewForm(forms.ModelForm):
+    """A rating and, if they want, what actually happened.
+
+    The rating labels are sentences rather than stars. A homeschooling parent
+    choosing between two Botany plans is not asking "how many stars" -- they
+    are asking whether somebody would use it again, and with which child. The
+    numbers are still numbers underneath, because reputation and sorting need
+    one; what changes is what the person is asked.
+
+    The prose is optional. A rating with no words is still a data point, and
+    demanding a paragraph is how you get a paragraph of nothing.
+    """
+
+    class Meta:
+        model = Review
+        fields = ['rating', 'body']
+        labels = {'rating': 'How did it go?', 'body': 'Anything to add?'}
+        widgets = {'body': forms.Textarea(attrs={'rows': 6})}

@@ -552,9 +552,18 @@
     font-size: .82rem; font-weight: 600;
   }
   .plan-body { margin-top: 2rem; }
+  /* A QUIET ASIDE, AND NOTHING ELSE. This carried its own border-top and a
+     2.25rem margin from when it was the single separated note under a
+     description. Both sections that use it now draw their own rule, so on a
+     published listing it added a stray line above "No reviews yet." and above
+     the sentence explaining why there is no review button -- and about ninety
+     pixels of dead space with them.
+
+     Third time this stylesheet has dressed the one place a class was written
+     for and not the next. The separator belongs to the section, so the
+     section keeps it and this keeps only the voice. */
   .plan-note {
-    margin-top: 2.25rem; padding-top: 1.25rem;
-    border-top: 1px solid var(--rule);
+    margin-top: .6rem;
     color: var(--muted); font-size: .92rem;
   }
   .plan-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: .7rem; }
@@ -590,8 +599,41 @@
   .plan-pack input[type="file"]::file-selector-button:hover {
     border-color: var(--green-action); color: var(--green-action);
   }
-  .plan-pack .plan-note { margin-top: .6rem; padding-top: 0; border-top: 0; }
   /* Two action rows in a row, each claiming 2rem above it, left about seventy
      pixels of nothing between the pack's button and the page's. The one
      inside the section belongs to the section. */
   .plan-pack .plan-actions { margin-top: 1.25rem; }
+
+  /* --- reviews -----------------------------------------------------
+     Set apart by a rule and indentation rather than boxes. A page of
+     bordered cards makes ten opinions look like ten products; these are
+     one conversation about one plan.
+     --------------------------------------------------------------- */
+  .plan-reviews {
+    margin-top: 2.75rem; padding-top: 1.75rem;
+    border-top: 1px solid var(--rule);
+  }
+  .plan-reviews h2 { font-size: 1.15rem; }
+  .review-average {
+    display: block; margin-top: .3rem;
+    font-family: "Work Sans", sans-serif; font-size: .88rem;
+    font-weight: 400; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .review { margin-top: 1.6rem; }
+  .review p { margin: .35rem 0 0; }
+  .review-head { font-size: .92rem; color: var(--ink-soft); }
+  .review-head strong { color: var(--ink); }
+  /* Yours, marked by a rail rather than a background: it is the same kind
+     of thing as the others, just the one you can edit. */
+  .review--mine {
+    padding-left: 1rem;
+    border-left: 3px solid var(--green);
+  }
+  .review-stale { color: var(--clay); }
+  /* Follows other people's words, so it needs room. Flush against the last
+     review it reads as that reviewer's closing line. */
+  .review-refusal {
+    margin-top: 1.9rem;
+    color: var(--muted); font-size: .92rem;
+  }

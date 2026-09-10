@@ -394,6 +394,32 @@ class Listing(models.Model):
             return f'Grade {grade_label(self.grade_min)}'
         return f'Grades {grade_label(self.grade_min)}–{grade_label(self.grade_max)}'
 
+    @property
+    def average_rating(self):
+        """None until somebody has said something.
+
+        A single review is not an average and showing "5.0" for one opinion
+        overstates it, but hiding it entirely hides the only thing anybody has
+        said. So the number is real from the first review and the count is
+        always beside it -- the count is what makes the number readable.
+        """
+        result = self.reviews.aggregate(models.Avg('rating'))['rating__avg']
+        return round(result, 1) if result is not None else None
+
+    def may_be_edited_by(self, user):
+        """Whoever could change this listing. Not a permission of its own.
+
+        A published listing is readable by everybody, so `may_be_read_by`
+        stops answering "is this yours" the moment it goes live -- which is
+        exactly when it starts to matter, because that is when reviews and
+        downloads begin.
+        """
+        if not getattr(user, 'is_authenticated', False):
+            return False
+        if self.owner_account_id:
+            return self.owner_account_id == user.pk
+        return self.owner_organisation.can_publish(user)
+
     def may_be_read_by(self, user):
         """Published plans are public; an unpublished one is its owner's.
 
@@ -454,3 +480,164 @@ class Listing(models.Model):
             'updated_at',
         ])
         return self
+
+
+class Acquisition(models.Model):
+    """The record that an account got a specific pack.
+
+    THE WHOLE ANTI-ABUSE STORY RESTS ON THIS ROW. §5 of the design document
+    defers the review system but leaves two constraints, and this is both of
+    them: "reputation and points attach to the person or organisation layer,
+    never the installation", and "sockpuppet resistance and entitlement
+    integrity are the same problem wearing two hats".
+
+    A review requires one of these. That makes farming reputation cost what
+    acquiring the material costs -- a subscription, per household -- rather
+    than costing an afternoon of throwaway accounts. It is the difference
+    between a rating that means something and a number.
+
+    IT CANNOT BE ADDED AFTERWARDS, which is why it is here before anything can
+    be downloaded. Reviews written before this model existed would have no
+    acquisition behind them, and there is no way to establish one later: the
+    download already happened, unrecorded. The same argument that put
+    `TermsAcceptance` in catalog's first migration.
+
+    `pack_sha256` records WHICH pack they got, not just that they got one. A
+    listing can be revised, and somebody who acquired version 1 is entitled to
+    review version 1 -- the review says so, and a later version does not
+    inherit it.
+    """
+
+    account = models.ForeignKey(
+        'accounts.Account', on_delete=models.CASCADE, related_name='acquisitions',
+    )
+    listing = models.ForeignKey(
+        Listing, on_delete=models.CASCADE, related_name='acquisitions',
+    )
+    #: The pack as it was when they took it. Blank only if a listing somehow
+    #: had none, which `download_pack` refuses.
+    pack_sha256 = models.CharField(max_length=64, blank=True)
+    version = models.CharField(max_length=20, blank=True)
+    acquired_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-acquired_at']
+        constraints = [
+            # One per person per listing. §4.4.3 makes a download licence
+            # perpetual once acquired, so a second download is the same
+            # acquisition happening again rather than a new one -- and two
+            # rows would make "when did they get it" a question with two
+            # answers.
+            models.UniqueConstraint(
+                fields=['account', 'listing'],
+                name='one_acquisition_per_account_per_listing',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.account.handle} has {self.listing.slug}'
+
+
+def record_acquisition(listing, account):
+    """Note that this account has the pack. Idempotent.
+
+    Called when a download succeeds. Deliberately NOT called for somebody who
+    could publish the listing anyway: an author holding their own work is not
+    an acquisition, they cannot review it, and a row saying otherwise would be
+    the first lie in the table reputation is computed from.
+    """
+    if listing.may_be_edited_by(account):
+        return None
+    return Acquisition.objects.get_or_create(
+        account=account, listing=listing,
+        defaults={
+            'pack_sha256': listing.pack_sha256,
+            'version': listing.version,
+        },
+    )[0]
+
+
+class Review(models.Model):
+    """One person's account of using a plan.
+
+    Requires an `Acquisition`, refuses your own listing, and one per person
+    per listing. The rating is a number because reputation and sorting need
+    one; the prose is what another parent actually reads.
+
+    NOT append-only, unlike `TermsAcceptance`, and the difference is who the
+    row belongs to. An acceptance is evidence about somebody's agreement and
+    editing it would destroy the fact it holds. A review is its author's own
+    words about their own experience, and somebody who used a plan for a term
+    and changed their mind should be able to say so.
+
+    `version_reviewed` stamps which version this was about. A publisher who
+    revises a pack does not inherit praise for a different one, and a reader
+    can see that a five-star review predates the rewrite.
+    """
+
+    class Rating(models.IntegerChoices):
+        POOR = 1, 'Would not use again'
+        FAIR = 2, 'Some of it worked'
+        GOOD = 3, 'Worth using'
+        STRONG = 4, 'Would recommend'
+        EXCELLENT = 5, 'Would use again with another child'
+
+    listing = models.ForeignKey(
+        Listing, on_delete=models.CASCADE, related_name='reviews',
+    )
+    account = models.ForeignKey(
+        'accounts.Account', on_delete=models.CASCADE, related_name='reviews',
+    )
+    rating = models.PositiveSmallIntegerField(choices=Rating.choices)
+    body = models.TextField(
+        blank=True,
+        help_text='What worked, what you would change, who it suited.',
+    )
+    #: The listing version this review is about, copied at the time.
+    version_reviewed = models.CharField(max_length=20, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'listing'],
+                name='one_review_per_account_per_listing',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.account.handle} on {self.listing.slug}'
+
+    @property
+    def was_edited(self):
+        """Shown to readers. A review that changed after people read it is a
+        different statement, and hiding that is a small dishonesty."""
+        return (self.updated_at - self.created_at).total_seconds() > 60
+
+    @property
+    def is_of_an_older_version(self):
+        return bool(self.version_reviewed) and self.version_reviewed != self.listing.version
+
+
+def may_review(listing, account):
+    """Whether this account is allowed to review this listing, and why not.
+
+    Returns None when they may, or a sentence when they may not -- a sentence
+    rather than False because every one of these refusals is something the
+    person should be told, and a bare boolean at the call site turns into a
+    generic message that explains nothing.
+    """
+    if not getattr(account, 'is_authenticated', False):
+        return 'Only people with a Milepost account can review a plan.'
+    if not listing.is_published:
+        return 'This plan is not published yet.'
+    if listing.may_be_edited_by(account):
+        return 'You cannot review a plan you publish.'
+    if not Acquisition.objects.filter(listing=listing, account=account).exists():
+        return (
+            'Reviews come from people who have used the plan, so this needs '
+            'a copy of the pack first.'
+        )
+    return None

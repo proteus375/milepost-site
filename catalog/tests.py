@@ -21,6 +21,7 @@ from django.urls import reverse
 from accounts.models import Account, Organisation, OrganisationMembership
 from catalog.packs import attach
 from catalog.models import (
+    Acquisition, Review, may_review, record_acquisition,
     CONTENT_LICENCE, PUBLISHER_TERMS_VERSION, Listing, Subject,
     TermsAcceptance, accept_terms, has_accepted,
 )
@@ -842,3 +843,283 @@ class DownloadingAPackTests(CatalogFixture):
         response = self.client.get(listing.get_absolute_url())
         self.assertContains(response, 'A Year of Botany')
         self.assertContains(response, '1 section, 2 pages')
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class AcquiringAPackTests(CatalogFixture):
+    """The row a review has to stand on.
+
+    §5 leaves two constraints for whoever builds reviews, and this model is
+    both: reputation attaches to a person, and sockpuppet resistance is the
+    same problem as entitlement integrity. Requiring an acquisition makes
+    farming cost what acquiring the material costs.
+    """
+
+    def published(self, owner):
+        accept_terms(owner, accepted_by=owner)
+        return attach(self.plan(owner_account=owner), a_pack()).publish(by=owner)
+
+    def test_downloading_records_that_you_have_it(self):
+        ada = self.person('ada')
+        listing = self.published(ada)
+        priya = self.person('priya')
+
+        record_acquisition(listing, priya)
+        self.assertTrue(
+            Acquisition.objects.filter(listing=listing, account=priya).exists(),
+        )
+
+    def test_it_records_which_pack_they_took(self):
+        """A listing can be revised. Somebody who acquired version 1
+        acquired version 1, and the row has to say so or a review of it
+        cannot."""
+        ada = self.person('ada')
+        listing = self.published(ada)
+        acquisition = record_acquisition(listing, self.person('priya'))
+
+        self.assertEqual(acquisition.pack_sha256, listing.pack_sha256)
+        self.assertEqual(acquisition.version, listing.version)
+
+    def test_taking_it_twice_is_one_acquisition(self):
+        """§4.4.3 makes the licence perpetual once acquired, so a second
+        download is the same acquisition happening again."""
+        ada = self.person('ada')
+        listing = self.published(ada)
+        priya = self.person('priya')
+
+        record_acquisition(listing, priya)
+        record_acquisition(listing, priya)
+        self.assertEqual(Acquisition.objects.filter(account=priya).count(), 1)
+
+    def test_an_author_holding_their_own_work_is_not_an_acquisition(self):
+        """A row saying otherwise would be the first lie in the table
+        reputation is computed from."""
+        ada = self.person('ada')
+        listing = self.published(ada)
+
+        self.assertIsNone(record_acquisition(listing, ada))
+        self.assertEqual(Acquisition.objects.count(), 0)
+
+    def test_nor_is_a_co_op_publisher_holding_the_co_ops(self):
+        priya, ada = self.person('priya'), self.person('ada')
+        organisation = self.co_op(owner=priya)
+        organisation.add_member(ada)
+        accept_terms(priya, accepted_by=priya)
+        accept_terms(organisation, accepted_by=priya)
+        listing = attach(
+            self.plan(owner_organisation=organisation), a_pack(),
+        ).publish(by=priya)
+
+        self.assertIsNone(record_acquisition(listing, ada))
+
+    def test_the_owner_downloading_writes_nothing(self):
+        """The one path that reaches `record_acquisition` today, since a
+        stranger cannot download until billing exists."""
+        ada = self.person('ada')
+        listing = self.published(ada)
+        self.client.force_login(ada)
+
+        self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertEqual(Acquisition.objects.count(), 0)
+
+
+class WhoMayReviewTests(CatalogFixture):
+    """Every refusal is a sentence, because every one of them is something
+    the person should be told. A bare False at the call site becomes a
+    generic message that explains nothing."""
+
+    def setUp(self):
+        super().setUp()
+        self.ada = self.person('ada')
+        accept_terms(self.ada, accepted_by=self.ada)
+        self.listing = self.plan(owner_account=self.ada).publish(by=self.ada)
+        self.priya = self.person('priya')
+
+    def acquire(self, account):
+        return Acquisition.objects.create(listing=self.listing, account=account)
+
+    def test_a_stranger_signed_out_may_not(self):
+        self.assertIn('account', may_review(self.listing, None))
+
+    def test_a_draft_cannot_be_reviewed(self):
+        draft = self.plan('draft-plan', owner_account=self.ada)
+        self.acquire(self.priya)
+        self.assertIn('not published', may_review(draft, self.priya))
+
+    def test_you_cannot_review_your_own(self):
+        self.assertIn('you publish', may_review(self.listing, self.ada))
+
+    def test_nor_your_co_ops(self):
+        priya = self.person('org-owner')
+        organisation = self.co_op(owner=priya)
+        organisation.add_member(self.priya)
+        accept_terms(priya, accepted_by=priya)
+        accept_terms(organisation, accepted_by=priya)
+        listing = self.plan('co-op-plan', owner_organisation=organisation).publish(by=priya)
+
+        self.assertIn('you publish', may_review(listing, self.priya))
+
+    def test_without_a_copy_you_may_not(self):
+        self.assertIn('used the plan', may_review(self.listing, self.priya))
+
+    def test_with_one_you_may(self):
+        self.acquire(self.priya)
+        self.assertIsNone(may_review(self.listing, self.priya))
+
+
+class WritingAReviewTests(CatalogFixture):
+    def setUp(self):
+        super().setUp()
+        self.ada = self.person('ada')
+        accept_terms(self.ada, accepted_by=self.ada)
+        self.listing = self.plan(owner_account=self.ada).publish(by=self.ada)
+        self.priya = self.person('priya')
+        Acquisition.objects.create(listing=self.listing, account=self.priya)
+
+    def post(self, **extra):
+        payload = {'rating': '4', 'body': 'The garden weeks carried it.'}
+        payload.update(extra)
+        return self.client.post(
+            reverse('review_plan', args=[self.listing.slug]), payload,
+        )
+
+    def test_somebody_who_has_it_can_review_it(self):
+        self.client.force_login(self.priya)
+        self.post()
+
+        review = Review.objects.get()
+        self.assertEqual(review.account, self.priya)
+        self.assertEqual(review.rating, 4)
+
+    def test_the_version_reviewed_is_stamped(self):
+        self.client.force_login(self.priya)
+        self.post()
+        self.assertEqual(Review.objects.get().version_reviewed, self.listing.version)
+
+    def test_a_refusal_is_a_403_that_says_why(self):
+        """Not a 404. The listing is published and the reader is looking at
+        it -- what they are being told is that they may not review it."""
+        self.client.force_login(self.ada)
+        response = self.client.get(reverse('review_plan', args=[self.listing.slug]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'you publish', response.content)
+
+    def test_and_without_a_copy_says_that_instead(self):
+        self.client.force_login(self.person('stranger'))
+        response = self.client.get(reverse('review_plan', args=[self.listing.slug]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'used the plan', response.content)
+
+    def test_reviewing_twice_edits_rather_than_duplicates(self):
+        self.client.force_login(self.priya)
+        self.post()
+        self.post(rating='2', body='Second term went worse.')
+
+        self.assertEqual(Review.objects.count(), 1)
+        review = Review.objects.get()
+        self.assertEqual(review.rating, 2)
+        self.assertIn('Second term', review.body)
+
+    def test_an_edit_does_not_re_point_the_version(self):
+        """Otherwise an old opinion silently becomes a review of a pack its
+        author never saw."""
+        self.client.force_login(self.priya)
+        self.post()
+        self.listing.version = '2'
+        self.listing.save(update_fields=['version'])
+        self.post(rating='5')
+
+        self.assertEqual(Review.objects.get().version_reviewed, '1')
+
+    def test_a_review_of_an_older_version_says_so(self):
+        self.client.force_login(self.priya)
+        self.post()
+        self.listing.version = '2'
+        self.listing.save(update_fields=['version'])
+
+        self.assertTrue(Review.objects.get().is_of_an_older_version)
+
+    def test_the_prose_is_optional(self):
+        """A rating with no words is still a data point, and demanding a
+        paragraph is how you get a paragraph of nothing."""
+        self.client.force_login(self.priya)
+        self.post(body='')
+        self.assertEqual(Review.objects.count(), 1)
+
+
+class ReadingReviewsTests(CatalogFixture):
+    def setUp(self):
+        super().setUp()
+        self.ada = self.person('ada')
+        accept_terms(self.ada, accepted_by=self.ada)
+        self.listing = self.plan(owner_account=self.ada).publish(by=self.ada)
+
+    def review(self, handle, rating, body=''):
+        account = self.person(handle)
+        Acquisition.objects.create(listing=self.listing, account=account)
+        return Review.objects.create(
+            listing=self.listing, account=account, rating=rating, body=body,
+            version_reviewed=self.listing.version,
+        )
+
+    def test_an_average_needs_a_review(self):
+        self.assertIsNone(self.listing.average_rating)
+
+    def test_and_is_real_from_the_first_one(self):
+        self.review('priya', 4)
+        self.assertEqual(self.listing.average_rating, 4.0)
+
+    def test_it_is_the_mean_of_what_people_said(self):
+        self.review('priya', 5)
+        self.review('sam', 2)
+        self.assertEqual(self.listing.average_rating, 3.5)
+
+    def test_the_count_is_a_sentence_at_both_numbers(self):
+        """"from 1" is a sentence missing its noun, and the plural is the
+        half that only shows up with a second review."""
+        self.review('priya', 5)
+        self.assertContains(
+            self.client.get(self.listing.get_absolute_url()), 'from 1 review',
+        )
+        self.review('sam', 3)
+        self.assertContains(
+            self.client.get(self.listing.get_absolute_url()), 'from 2 reviews',
+        )
+
+    def test_the_page_shows_them(self):
+        self.review('priya', 5, 'Worked for both of mine.')
+        response = self.client.get(self.listing.get_absolute_url())
+
+        self.assertContains(response, 'Worked for both of mine')
+        self.assertContains(response, 'Would use again')
+
+    def test_and_the_count_beside_the_average(self):
+        """One review is not an average. The count is what makes the number
+        readable."""
+        self.review('priya', 5)
+        self.assertContains(
+            self.client.get(self.listing.get_absolute_url()), 'from 1 review',
+        )
+
+    def test_your_own_is_shown_apart_with_a_way_to_change_it(self):
+        review = self.review('priya', 3)
+        self.client.force_login(review.account)
+        response = self.client.get(self.listing.get_absolute_url())
+
+        self.assertContains(response, 'Your review')
+        self.assertContains(response, reverse('review_plan', args=[self.listing.slug]))
+
+    def test_a_reader_who_may_not_review_is_told_why(self):
+        self.client.force_login(self.ada)
+        self.assertContains(
+            self.client.get(self.listing.get_absolute_url()), 'you publish',
+        )
+
+    def test_a_draft_has_no_review_section_at_all(self):
+        draft = self.plan('draft-plan', owner_account=self.ada)
+        self.client.force_login(self.ada)
+        self.assertNotContains(
+            self.client.get(draft.get_absolute_url()), 'What people said',
+        )

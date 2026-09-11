@@ -41,21 +41,20 @@
         <strong>{{ plan.pack_course_name }}</strong> &mdash; {{ plan.pack_contents }}.
       </p>
       {% comment %}
-      A download link only for people who could replace the file anyway.
-      Entitlement is checked per household against a token (§B.3) and there
-      is no billing app yet, so there is no way to tell an entitled reader
-      from any other signed-in one -- and serving published packs to whoever
-      asks would be giving away other people's work rather than shipping an
-      unfinished feature. The sentence below says so instead of leaving a
-      missing button to be interpreted.
+      `no_download_because` is a sentence or nothing, and the view decides
+      which -- entitlement is a `billing` question and a template is the
+      wrong place to ask it. A person who could edit this plan is holding
+      their own work and is never asked for a subscription to read it.
+
+      The sentence is shown rather than the button being hidden, because
+      "not on a household yet" and "that subscription has lapsed" are
+      different situations and a missing button explains neither.
       {% endcomment %}
-      {% if can_edit %}
+      {% if no_download_because %}
+        <p class="plan-note">{{ no_download_because }}</p>
+      {% else %}
         <p class="plan-actions">
           <a class="btn btn-ghost" href="{% url 'download_pack' plan.slug %}">Download the pack</a>
-        </p>
-      {% else %}
-        <p class="plan-note">
-          Downloading shared packs is not open yet.
         </p>
       {% endif %}
     {% elif can_edit %}

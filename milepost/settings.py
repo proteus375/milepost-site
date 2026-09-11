@@ -111,6 +111,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.staticfiles',
     'accounts',
+    # Before `catalog`, because `catalog` imports it: an Acquisition names the
+    # household that made it, and a download is refused before it is recorded.
+    'billing',
     'catalog',
 ]
 

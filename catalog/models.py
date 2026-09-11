@@ -50,6 +50,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Account, Organisation, OrganisationMembership
+from billing.models import household_of
 
 from .packs import pack_path
 
@@ -511,6 +512,26 @@ class Acquisition(models.Model):
     account = models.ForeignKey(
         'accounts.Account', on_delete=models.CASCADE, related_name='acquisitions',
     )
+    # DENORMALISED AT WRITE TIME, AND THAT IS THE HONEST SHAPE RATHER THAN A
+    # SHORTCUT. §H.6 settles that a family counts once however many
+    # marketplace identities it links, so `WIDELY_USED` counts DISTINCT
+    # household -- and a UniqueConstraint cannot span a join, so the column
+    # has to be here rather than resolved through `account`.
+    #
+    # Resolving it live would also be wrong, not merely slower. People move
+    # between households -- a separated couple becomes two -- and the
+    # household that took a copy is a fact about the day it happened. A
+    # membership change must not retroactively re-attribute a download to a
+    # household that never made it.
+    #
+    # PROTECT, because a household is deactivated rather than deleted
+    # (`billing.models`, and the same rule `Listing.owner_organisation`
+    # follows): §4.4.3 makes a download licence perpetual, so the row saying
+    # who holds one has to outlive the subscription that bought it.
+    household = models.ForeignKey(
+        'billing.Household', on_delete=models.PROTECT,
+        related_name='acquisitions',
+    )
     listing = models.ForeignKey(
         Listing, on_delete=models.CASCADE, related_name='acquisitions',
     )
@@ -545,12 +566,27 @@ def record_acquisition(listing, account):
     could publish the listing anyway: an author holding their own work is not
     an acquisition, they cannot review it, and a row saying otherwise would be
     the first lie in the table reputation is computed from.
+
+    RAISES rather than returning None when there is no household, and the
+    difference between the two exits matters. Returning None means "correctly
+    nothing to record" -- an author holding their own work. An account with no
+    household reaching here means the entitlement gate upstream did not run,
+    which is a bug that would otherwise present as downloads that silently
+    never count. `download_pack` refuses first; this is the assertion that it
+    did.
     """
     if listing.may_be_edited_by(account):
         return None
+    household = household_of(account)
+    if household is None:
+        raise ValidationError(
+            'A download cannot be recorded for an account with no household. '
+            'Entitlement is checked before the bytes go out.'
+        )
     return Acquisition.objects.get_or_create(
         account=account, listing=listing,
         defaults={
+            'household': household,
             'pack_sha256': listing.pack_sha256,
             'version': listing.version,
         },
@@ -588,6 +624,15 @@ class Review(models.Model):
     account = models.ForeignKey(
         'accounts.Account', on_delete=models.CASCADE, related_name='reviews',
     )
+    # TAKEN FROM THE ACQUISITION, NOT LOOKED UP AFRESH. A review stands on a
+    # copy somebody took, and the household that took that copy is the
+    # household whose opinion this is. Re-resolving it at review time would
+    # let a person who changed households in between carry the opinion to the
+    # new one, which is both wrong as a record and the exact move the
+    # constraint below exists to refuse.
+    household = models.ForeignKey(
+        'billing.Household', on_delete=models.PROTECT, related_name='reviews',
+    )
     rating = models.PositiveSmallIntegerField(choices=Rating.choices)
     body = models.TextField(
         blank=True,
@@ -605,6 +650,22 @@ class Review(models.Model):
                 fields=['account', 'listing'],
                 name='one_review_per_account_per_listing',
             ),
+            # §H.6. A rating is one household's experience of a plan, and two
+            # parents on one subscription who both liked it have one
+            # experience between them -- counting it twice overstates it
+            # whether or not anybody meant to. The honest rule and the
+            # anti-abuse rule turn out to be the same rule, which is the shape
+            # §5 predicted when it said sockpuppet resistance and entitlement
+            # integrity were one problem.
+            #
+            # BOTH CONSTRAINTS, NOT JUST THIS ONE. The account rule is not
+            # implied by the household rule: somebody who moves to a second
+            # household could otherwise review the same listing again, from
+            # the new one. Two cheap indexes beat reasoning about that.
+            models.UniqueConstraint(
+                fields=['household', 'listing'],
+                name='one_review_per_household_per_listing',
+            ),
         ]
 
     def __str__(self):
@@ -621,6 +682,15 @@ class Review(models.Model):
         return bool(self.version_reviewed) and self.version_reviewed != self.listing.version
 
 
+def acquisition_for(listing, account):
+    """The row this person's review would stand on, or None."""
+    if not getattr(account, 'is_authenticated', False):
+        return None
+    return Acquisition.objects.filter(
+        listing=listing, account=account,
+    ).select_related('household').first()
+
+
 def may_review(listing, account):
     """Whether this account is allowed to review this listing, and why not.
 
@@ -635,9 +705,24 @@ def may_review(listing, account):
         return 'This plan is not published yet.'
     if listing.may_be_edited_by(account):
         return 'You cannot review a plan you publish.'
-    if not Acquisition.objects.filter(listing=listing, account=account).exists():
+
+    acquisition = acquisition_for(listing, account)
+    if acquisition is None:
         return (
             'Reviews come from people who have used the plan, so this needs '
             'a copy of the pack first.'
+        )
+
+    # §H.6, and the refusal has to name the household or it reads as a bug.
+    # Somebody told "you have already reviewed this" who knows perfectly well
+    # they have not will assume the site is broken rather than that their
+    # partner got there first.
+    taken = Review.objects.filter(
+        listing=listing, household=acquisition.household,
+    ).exclude(account=account).exists()
+    if taken:
+        return (
+            'Somebody on your household has already reviewed this plan. A '
+            'plan gets one review per household, and they can edit theirs.'
         )
     return None

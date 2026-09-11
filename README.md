@@ -27,8 +27,22 @@ and four apps —
 | `catalog` | Listings, packs, search, browse, moderation |
 | `instances` | Installation registration, the versioned machine API, licences |
 
-None of them is scaffolded here. An empty app with no models claims work has
-started when it has not; each arrives with its first model.
+`accounts`, `catalog` and `billing` exist. `instances` does not, and is not
+scaffolded: an empty app with no models claims work has started when it has
+not, so each arrives with its first model.
+
+`billing` arrived with households and entitlement and **no Stripe**, which is
+worth saying because the table above lists Stripe first. What gates a download
+is a date on a household that an operator sets by hand; Stripe's job, when it
+lands, is to set that same date from a webhook. Splitting it that way meant the
+half everything else was waiting on could be built and tested with no external
+account, no keys and no webhook tunnel.
+
+§B.3's signed entitlement token is also absent, and that is not the same
+omission. The token exists so an installation in the field can verify
+entitlement *offline*; there is no `instances` app, so nothing would read it. It
+arrives with the app that consumes it, and it will read the same rows the
+marketplace already reads in process.
 
 The seam that section says is worth building early is not
 marketplace-versus-billing — it is **human browser traffic versus machine

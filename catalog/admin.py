@@ -78,10 +78,15 @@ class AcquisitionAdmin(admin.ModelAdmin):
     somebody. Editable, never.
     """
 
-    list_display = ['account', 'listing', 'version', 'acquired_at']
+    # `household` is on the list because it is what anything counting these
+    # rows counts (§H.6), and a column an operator cannot see is a column
+    # they cannot sanity-check. It is also half of §H.7's brigading query --
+    # a cluster of first-time acquisitions of one listing in a short window
+    # reads very differently when they are all one household.
+    list_display = ['account', 'household', 'listing', 'version', 'acquired_at']
     list_filter = ['acquired_at']
-    search_fields = ['account__handle', 'listing__slug']
-    autocomplete_fields = ['account', 'listing']
+    search_fields = ['account__handle', 'listing__slug', 'household__name']
+    autocomplete_fields = ['account', 'listing', 'household']
 
     def has_add_permission(self, request):
         return False
@@ -98,13 +103,14 @@ class ReviewAdmin(admin.ModelAdmin):
     removing them.
     """
 
-    list_display = ['account', 'listing', 'rating', 'version_reviewed', 'created_at']
+    list_display = ['account', 'household', 'listing', 'rating',
+                    'version_reviewed', 'created_at']
     list_filter = ['rating', 'created_at']
     search_fields = ['account__handle', 'listing__slug', 'body']
     autocomplete_fields = ['account', 'listing']
     readonly_fields = [
-        'account', 'listing', 'rating', 'body', 'version_reviewed',
-        'created_at', 'updated_at',
+        'account', 'household', 'listing', 'rating', 'body',
+        'version_reviewed', 'created_at', 'updated_at',
     ]
 
     def has_add_permission(self, request):

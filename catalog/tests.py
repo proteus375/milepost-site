@@ -9,6 +9,7 @@ to find out is whether it reaches the database at all.
 """
 
 import tempfile
+from datetime import timedelta
 
 from courselms_format import COURSE_FORMAT, build_from_document
 from django.core.exceptions import ValidationError
@@ -17,8 +18,10 @@ from django.db.models import ProtectedError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Account, Organisation, OrganisationMembership
+from billing.models import Household, HouseholdMembership
 from catalog.packs import attach
 from catalog.models import (
     Acquisition, Review, may_review, record_acquisition,
@@ -44,6 +47,36 @@ class CatalogFixture(TestCase):
                 owner, role=OrganisationMembership.Role.OWNER,
             )
         return organisation
+
+    def household(self, *accounts, entitled=True, name='The Lovelaces'):
+        """A household, optionally paid up, with these people on it.
+
+        `entitled=True` by default because an unentitled household is the
+        interesting case and should have to be asked for by name. A test that
+        says `self.household(priya)` is describing an ordinary paying
+        customer, which is what most of these tests are about.
+        """
+        home = Household.objects.create(
+            name=name,
+            entitled_through=(
+                timezone.localdate() + timedelta(days=30) if entitled else None
+            ),
+        )
+        for position, account in enumerate(accounts):
+            home.add_member(
+                account,
+                role=(
+                    HouseholdMembership.Role.OWNER if position == 0
+                    else HouseholdMembership.Role.MEMBER
+                ),
+            )
+        return home
+
+    def subscriber(self, handle='priya', **extra):
+        """A person who is paid up. The ordinary customer of this service."""
+        account = self.person(handle)
+        self.household(account, name=f'The {handle.title()}s', **extra)
+        return account
 
     def plan(self, slug='botany', **extra):
         fields = {
@@ -800,22 +833,53 @@ class DownloadingAPackTests(CatalogFixture):
             404,
         )
 
-    def test_a_stranger_cannot_download_a_published_pack_yet(self):
-        """Deliberate, not forgotten. Entitlement is checked per household
-        against a token (§B.3); there is no billing app, so there is no way
-        to tell an entitled reader from any other signed-in one, and serving
-        published packs to whoever asks would be giving away other people's
-        work."""
-        ada = self.person('ada')
+    def a_published_pack(self, owner_handle='ada'):
+        ada = self.person(owner_handle)
         accept_terms(ada, accepted_by=ada)
         listing = self.with_pack(ada)
         listing.publish(by=ada)
+        return listing
 
+    def test_an_entitled_stranger_can_download_a_published_pack(self):
+        """The gate this view waited for. Until `billing` there was no way to
+        tell an entitled reader from any other signed-in one."""
+        listing = self.a_published_pack()
+        self.client.force_login(self.subscriber('priya'))
+
+        response = self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment', response['Content-Disposition'])
+
+    def test_but_somebody_with_no_household_cannot(self):
+        listing = self.a_published_pack()
         self.client.force_login(self.person('priya'))
-        self.assertEqual(
-            self.client.get(reverse('download_pack', args=[listing.slug])).status_code,
-            404,
-        )
+
+        response = self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'not on a household', response.content)
+
+    def test_nor_can_one_whose_subscription_lapsed(self):
+        """A 403 that says so, not a 404. A paying customer whose card
+        expired should not be told the page is gone -- and the sentence has
+        to distinguish this from never having subscribed at all."""
+        listing = self.a_published_pack()
+        priya = self.person('priya')
+        self.household(priya, entitled=False)
+        self.client.force_login(priya)
+
+        response = self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'lapsed', response.content)
+
+    def test_and_a_refusal_does_not_record_an_acquisition(self):
+        """The reverse test, written with the feature. §E.7.1's finding was
+        that the untested direction is the one that fails, and the untested
+        direction here is a refused download that counts anyway."""
+        listing = self.a_published_pack()
+        self.client.force_login(self.person('priya'))
+
+        self.client.get(reverse('download_pack', args=[listing.slug]))
+        self.assertEqual(Acquisition.objects.count(), 0)
 
     def test_nor_can_somebody_signed_out(self):
         ada = self.person()
@@ -862,7 +926,7 @@ class AcquiringAPackTests(CatalogFixture):
     def test_downloading_records_that_you_have_it(self):
         ada = self.person('ada')
         listing = self.published(ada)
-        priya = self.person('priya')
+        priya = self.subscriber('priya')
 
         record_acquisition(listing, priya)
         self.assertTrue(
@@ -875,7 +939,7 @@ class AcquiringAPackTests(CatalogFixture):
         cannot."""
         ada = self.person('ada')
         listing = self.published(ada)
-        acquisition = record_acquisition(listing, self.person('priya'))
+        acquisition = record_acquisition(listing, self.subscriber('priya'))
 
         self.assertEqual(acquisition.pack_sha256, listing.pack_sha256)
         self.assertEqual(acquisition.version, listing.version)
@@ -885,7 +949,7 @@ class AcquiringAPackTests(CatalogFixture):
         download is the same acquisition happening again."""
         ada = self.person('ada')
         listing = self.published(ada)
-        priya = self.person('priya')
+        priya = self.subscriber('priya')
 
         record_acquisition(listing, priya)
         record_acquisition(listing, priya)
@@ -913,8 +977,9 @@ class AcquiringAPackTests(CatalogFixture):
         self.assertIsNone(record_acquisition(listing, ada))
 
     def test_the_owner_downloading_writes_nothing(self):
-        """The one path that reaches `record_acquisition` today, since a
-        stranger cannot download until billing exists."""
+        """An author holding their own work is not an acquisition, and the
+        entitlement gate does not ask them for a subscription to read what
+        they wrote."""
         ada = self.person('ada')
         listing = self.published(ada)
         self.client.force_login(ada)
@@ -933,10 +998,10 @@ class WhoMayReviewTests(CatalogFixture):
         self.ada = self.person('ada')
         accept_terms(self.ada, accepted_by=self.ada)
         self.listing = self.plan(owner_account=self.ada).publish(by=self.ada)
-        self.priya = self.person('priya')
+        self.priya = self.subscriber('priya')
 
     def acquire(self, account):
-        return Acquisition.objects.create(listing=self.listing, account=account)
+        return record_acquisition(self.listing, account)
 
     def test_a_stranger_signed_out_may_not(self):
         self.assertIn('account', may_review(self.listing, None))
@@ -973,8 +1038,8 @@ class WritingAReviewTests(CatalogFixture):
         self.ada = self.person('ada')
         accept_terms(self.ada, accepted_by=self.ada)
         self.listing = self.plan(owner_account=self.ada).publish(by=self.ada)
-        self.priya = self.person('priya')
-        Acquisition.objects.create(listing=self.listing, account=self.priya)
+        self.priya = self.subscriber('priya')
+        record_acquisition(self.listing, self.priya)
 
     def post(self, **extra):
         payload = {'rating': '4', 'body': 'The garden weeks carried it.'}
@@ -1006,7 +1071,7 @@ class WritingAReviewTests(CatalogFixture):
         self.assertIn(b'you publish', response.content)
 
     def test_and_without_a_copy_says_that_instead(self):
-        self.client.force_login(self.person('stranger'))
+        self.client.force_login(self.subscriber('stranger'))
         response = self.client.get(reverse('review_plan', args=[self.listing.slug]))
 
         self.assertEqual(response.status_code, 403)
@@ -1057,10 +1122,12 @@ class ReadingReviewsTests(CatalogFixture):
         self.listing = self.plan(owner_account=self.ada).publish(by=self.ada)
 
     def review(self, handle, rating, body=''):
-        account = self.person(handle)
-        Acquisition.objects.create(listing=self.listing, account=account)
+        account = self.subscriber(handle)
+        acquisition = record_acquisition(self.listing, account)
         return Review.objects.create(
-            listing=self.listing, account=account, rating=rating, body=body,
+            listing=self.listing, account=account,
+            household=acquisition.household,
+            rating=rating, body=body,
             version_reviewed=self.listing.version,
         )
 
@@ -1123,3 +1190,199 @@ class ReadingReviewsTests(CatalogFixture):
         self.assertNotContains(
             self.client.get(draft.get_absolute_url()), 'What people said',
         )
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class OneHouseholdOneOpinionTests(CatalogFixture):
+    """§H.6, which is the rule that makes §5's equivalence true.
+
+    "Sockpuppet resistance and entitlement integrity are the same problem"
+    holds only if one subscription buys one reviewing identity. §B.3 settled
+    that it does not -- a household carries one or more linked identities,
+    and the humans decide how many. Counting per account overstates by
+    exactly that factor, so an acquisition and a review count per household.
+
+    The honest rule and the anti-abuse rule turn out to be the same rule: two
+    parents on one subscription who both liked a plan have one household's
+    experience of it.
+    """
+
+    def published(self, owner):
+        accept_terms(owner, accepted_by=owner)
+        return attach(self.plan(owner_account=owner), a_pack()).publish(by=owner)
+
+    def setUp(self):
+        super().setUp()
+        self.listing = self.published(self.person('ada'))
+        self.mum, self.dad = self.person('mum'), self.person('dad')
+        self.home = self.household(self.mum, self.dad, name='The Hydes')
+
+    def test_an_acquisition_records_which_family_took_it(self):
+        acquisition = record_acquisition(self.listing, self.mum)
+        self.assertEqual(acquisition.household, self.home)
+
+    def test_both_parents_may_each_hold_a_copy(self):
+        """Not the thing being refused. Downloading is not an opinion, and
+        telling a second parent they may not have the file their household
+        paid for would be absurd."""
+        record_acquisition(self.listing, self.mum)
+        record_acquisition(self.listing, self.dad)
+        self.assertEqual(Acquisition.objects.count(), 2)
+
+    def test_but_only_one_of_them_reviews_it(self):
+        record_acquisition(self.listing, self.mum)
+        record_acquisition(self.listing, self.dad)
+        self.client.force_login(self.mum)
+        self.client.post(
+            reverse('review_plan', args=[self.listing.slug]),
+            {'rating': '4', 'body': 'The garden weeks carried it.'},
+        )
+
+        refusal = may_review(self.listing, self.dad)
+        self.assertIn('your household', refusal)
+
+    def test_and_the_refusal_says_who_got_there_first(self):
+        """A person told "you have already reviewed this" who knows they
+        have not will assume the site is broken, rather than that their
+        partner beat them to it."""
+        acquisition = record_acquisition(self.listing, self.mum)
+        Review.objects.create(
+            listing=self.listing, account=self.mum,
+            household=acquisition.household, rating=5,
+        )
+        record_acquisition(self.listing, self.dad)
+
+        self.assertIn('Somebody on your household', may_review(self.listing, self.dad))
+
+    def test_the_reviewer_can_still_edit_their_own(self):
+        """The exclusion is `.exclude(account=account)` and not a bare
+        exists, or writing a review would lock its own author out of it."""
+        acquisition = record_acquisition(self.listing, self.mum)
+        Review.objects.create(
+            listing=self.listing, account=self.mum,
+            household=acquisition.household, rating=5,
+        )
+        self.assertIsNone(may_review(self.listing, self.mum))
+
+    def test_another_family_is_another_opinion(self):
+        """The constraint must not accidentally make a plan reviewable
+        once. This is the direction that would fail silently -- as a plan
+        that stops collecting reviews rather than as an error."""
+        record_acquisition(self.listing, self.mum)
+        other = self.subscriber('priya')
+        record_acquisition(self.listing, other)
+
+        self.assertIsNone(may_review(self.listing, other))
+
+    def test_the_database_refuses_a_second_review_from_one_family(self):
+        """A CheckConstraint that was written but never exercised is a
+        comment with a syntax error waiting in it."""
+        record_acquisition(self.listing, self.mum)
+        record_acquisition(self.listing, self.dad)
+        Review.objects.create(
+            listing=self.listing, account=self.mum,
+            household=self.home, rating=5,
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Review.objects.create(
+                listing=self.listing, account=self.dad,
+                household=self.home, rating=1,
+            )
+
+    def test_a_review_keeps_the_household_that_took_the_copy(self):
+        """Not the reviewer's household today. People move between
+        households -- a separated couple becomes two -- and re-resolving it
+        would carry an old opinion to a new subscription, which is both a
+        false record and a way around the rule above."""
+        acquisition = record_acquisition(self.listing, self.mum)
+        self.client.force_login(self.mum)
+        self.client.post(
+            reverse('review_plan', args=[self.listing.slug]),
+            {'rating': '4', 'body': 'Worked for us.'},
+        )
+
+        # Dad takes over as owner first: `remove_member` refuses to strip a
+        # household of its last one, which is the same refusal this codebase
+        # writes everywhere a record could be left unmanageable.
+        self.home.memberships.filter(account=self.dad).update(
+            role=HouseholdMembership.Role.OWNER,
+        )
+        self.home.remove_member(self.mum)
+        self.household(self.mum, name='The Second Hydes')
+        self.assertEqual(Review.objects.get().household, acquisition.household)
+
+    def test_a_household_holding_acquisitions_cannot_be_deleted(self):
+        """PROTECT. §4.4.3 makes a download licence perpetual once acquired,
+        so the row saying who holds one has to outlive the subscription that
+        bought it -- which is why a household is deactivated, never deleted."""
+        record_acquisition(self.listing, self.mum)
+        with self.assertRaises(ProtectedError):
+            self.home.delete()
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class RecordingWithoutAHouseholdTests(CatalogFixture):
+    def test_it_raises_rather_than_quietly_recording_nothing(self):
+        """The two ways out of `record_acquisition` mean different things.
+        None is "correctly nothing to record" -- an author holding their own
+        work. No household means the gate upstream did not run, which would
+        otherwise present as downloads that silently never count."""
+        ada = self.person('ada')
+        accept_terms(ada, accepted_by=ada)
+        listing = attach(self.plan(owner_account=ada), a_pack()).publish(by=ada)
+
+        with self.assertRaises(ValidationError) as refused:
+            record_acquisition(listing, self.person('priya'))
+        self.assertIn('no household', str(refused.exception))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class WhatTheListingPageOffersTests(CatalogFixture):
+    """The page and the view must agree about who may download.
+
+    A button that 403s and a missing button that explains nothing are the two
+    ways to get this wrong, and they fail in opposite directions -- one wastes
+    a click, the other loses a renewal. The page says the same sentence the
+    view would.
+    """
+
+    def published(self, owner):
+        accept_terms(owner, accepted_by=owner)
+        return attach(self.plan(owner_account=owner), a_pack()).publish(by=owner)
+
+    def setUp(self):
+        super().setUp()
+        self.listing = self.published(self.person('ada'))
+
+    def test_an_entitled_reader_is_offered_the_pack(self):
+        self.client.force_login(self.subscriber('priya'))
+        response = self.client.get(self.listing.get_absolute_url())
+        self.assertContains(response, 'Download the pack')
+
+    def test_somebody_with_no_household_is_told_what_is_missing(self):
+        self.client.force_login(self.person('priya'))
+        response = self.client.get(self.listing.get_absolute_url())
+
+        self.assertNotContains(response, 'Download the pack')
+        self.assertContains(response, 'not on a household')
+
+    def test_a_lapsed_reader_is_told_that_instead(self):
+        priya = self.person('priya')
+        self.household(priya, entitled=False)
+        self.client.force_login(priya)
+        response = self.client.get(self.listing.get_absolute_url())
+
+        self.assertContains(response, 'lapsed')
+        self.assertNotContains(response, 'Download the pack')
+
+    def test_an_author_is_never_asked_for_a_subscription(self):
+        """Their own draft, their own work. Asking somebody to subscribe to
+        read what they wrote would be absurd, and `record_acquisition`
+        refuses to record it anyway."""
+        ada = self.person('ada-two')
+        draft = attach(self.plan('another-plan', owner_account=ada), a_pack())
+        self.client.force_login(ada)
+
+        response = self.client.get(draft.get_absolute_url())
+        self.assertContains(response, 'Download the pack')

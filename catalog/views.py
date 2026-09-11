@@ -31,8 +31,12 @@ from django.http import Http404
 from django.http import FileResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
+from billing.models import entitlement_refusal
+
 from .forms import PackForm, PlanForm, ReviewForm
-from .models import Listing, Review, Subject, may_review, record_acquisition
+from .models import (
+    Listing, Review, Subject, acquisition_for, may_review, record_acquisition,
+)
 
 
 def plans(request):
@@ -72,6 +76,15 @@ def listing(request, slug):
     if getattr(request.user, 'is_authenticated', False):
         mine = reviews.filter(account=request.user).first()
 
+    # Once, not twice. `may_review` was two calls when it was one query; it
+    # now looks up an acquisition and the household's other reviews, and
+    # asking the same question twice per page view is three queries nobody
+    # needs.
+    no_review_because = may_review(plan, request.user)
+    # Reaching a draft at all means being allowed to -- anybody else was
+    # refused above -- so on a draft, the reader is the editor.
+    can_edit = not plan.is_published
+
     return render(request, 'catalog/listing.html', {
         'plan': plan,
         'reviews': reviews.exclude(pk=mine.pk) if mine else reviews,
@@ -80,12 +93,15 @@ def listing(request, slug):
         # page says which -- "you cannot review a plan you publish" and "this
         # needs a copy of the pack first" are different situations and a
         # missing form explains neither.
-        'no_review_because': may_review(plan, request.user),
-        'review_form': ReviewForm(instance=mine) if not may_review(plan, request.user) else None,
+        'no_review_because': no_review_because,
+        'review_form': ReviewForm(instance=mine) if not no_review_because else None,
         'pack_form': PackForm() if not plan.is_published else None,
-        # Reaching a draft at all means being allowed to -- anybody else was
-        # refused above -- so on a draft, the reader is the editor.
-        'can_edit': not plan.is_published,
+        'can_edit': can_edit,
+        # The same shape, for the same reason. A missing download button
+        # explained nothing while nobody could download; now that the answer
+        # depends on the reader, "not on a household" and "lapsed" are
+        # different situations and only one of them is a thing to go and fix.
+        'no_download_because': None if can_edit else entitlement_refusal(request.user),
     })
 
 
@@ -173,14 +189,29 @@ def upload_pack(request, slug):
 def download_pack(request, slug):
     """The pack itself, to somebody entitled to it.
 
-    TODAY THAT MEANS ITS OWNER AND NOBODY ELSE, and the gap is deliberate
-    rather than forgotten. §B.3 checks a download per household against a
-    fresh token carrying `marketplace.download`; there is no billing app, so
-    there are no tokens, so there is no way to tell an entitled reader from
-    any other signed-in one. Serving published packs to whoever asks would
-    not be an unfinished feature, it would be giving away other people's
-    work -- so this serves a pack to the people who could already replace it,
-    and waits.
+    THE GATE THIS VIEW WAITED FOR NOW EXISTS. Until `billing` there was no
+    way to tell an entitled reader from any other signed-in one, so this
+    served a pack only to the people who could already replace it. It now
+    asks `billing` the one question that app exists to answer, in process.
+
+    NOT §B.3'S TOKEN, and the distinction is worth keeping straight. That
+    token exists so an installation in the field can verify entitlement
+    offline, with a grace window for the case where the marketplace cannot be
+    reached. Nothing about that applies to a browser talking to the
+    marketplace itself: if this code is running, the marketplace was reached,
+    so there is no staleness to grace and no signature to check. The token
+    arrives with `instances`, reading the same rows this reads.
+
+    A REFUSAL HERE IS A 403 WITH THE REASON, NOT A 404, which reverses what
+    this view did before and matches `review_plan`. The 404 was right while
+    the answer was "nobody may have this yet" -- there was nothing to explain
+    and no action to offer. The answer is now "you may not have this, and
+    here is what would change that", and hiding that behind a 404 tells a
+    paying customer whose subscription lapsed that the page is gone.
+
+    The listing's existence is not the secret; a published plan is on a page
+    they are looking at. An unpublished one still 404s, because whether an
+    address belongs to anything is not something a stranger is owed.
 
     Streamed by a view rather than served from a URL prefix, which is why
     settings define MEDIA_ROOT and no MEDIA_URL: a guessable path would be
@@ -189,8 +220,15 @@ def download_pack(request, slug):
     plan = get_object_or_404(Listing, slug=slug)
     if not plan.has_pack or not plan.may_be_read_by(request.user):
         raise Http404
-    if plan.is_published and not plan.may_be_edited_by(request.user):
-        raise Http404
+
+    # Order matters. Somebody who could edit this listing is holding their own
+    # work, which needs no entitlement and records no acquisition -- asking
+    # them for a subscription to read what they wrote would be absurd, and
+    # `record_acquisition` refuses to record it anyway.
+    if not plan.may_be_edited_by(request.user):
+        refusal = entitlement_refusal(request.user)
+        if refusal:
+            return HttpResponseForbidden(refusal)
 
     # Noted before the bytes go out, so a reader who took a copy is a reader
     # who can review it. Refused for anybody who could publish the listing --
@@ -233,9 +271,14 @@ def review_plan(request, slug):
         review = form.save(commit=False)
         review.listing = plan
         review.account = request.user
+        # From the acquisition rather than from the person's household today,
+        # for the reason on the field: the opinion belongs to the household
+        # that took the copy. `may_review` has already established that this
+        # row exists.
         # Stamped only when it is written, so an edit does not silently
         # re-point an old opinion at a pack the author never saw.
         if not existing:
+            review.household = acquisition_for(plan, request.user).household
             review.version_reviewed = plan.version
         review.save()
         return redirect(plan)

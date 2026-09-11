@@ -66,6 +66,14 @@ bare name would.
 > both go on the designation. Listing both costs nothing and omitting either
 > makes the agent unfindable to somebody typing the one you left off.
 
+> **Everything from here to the end of §1 is the record of a completed task,
+> not a to-do list.** The search was run and the name filed on 4 September 2026;
+> the procedure and the caveats are kept because they are why the name is
+> `Milepost Family` rather than `Milepost`, and because the trade-mark search in
+> step 3 is the one part nobody has confirmed either way. *Added 11 September
+> 2026, after a reading of the design document's summary of this file sent
+> somebody off to redo the search.*
+
 ### One question the search cannot answer
 
 **Does this search include registered trade names, or only entities?** The
@@ -185,6 +193,34 @@ designation. **There is one filing here, not two.**
 Omitting an alternative name does not invalidate the designation — it just makes the agent unfindable
 by anyone searching that name, which is the entire point of the directory.
 
+### The two addresses are governed by different rules — checked 11 September 2026
+
+The version of this section written before the Office's own FAQ was read said a
+PO box "may not suffice" and left it at that. The actual rule is sharper, and
+it splits:
+
+| | |
+| --- | --- |
+| **Service provider's address** | Must be a **physical street address, not a post office box.** A waiver exists but is granted "only in exceptional circumstances, such as where there is a demonstrable threat to an individual's personal safety or security" — it is not a convenience. Waiver requests now go by email as well as by post. |
+| **Designated agent's address** | **No street-address requirement at all.** The FAQ is explicit: *"a waiver is not necessary to provide a post office box for a designated agent's address."* |
+
+So there is exactly one field here that forces a real street address into a
+public, permanently searchable federal directory next to the entity name, and
+it is the first one. The agent's address underneath it can be a box.
+
+#### What the options actually are
+
+A PO box does not answer the service-provider field, so the choice is between
+street addresses:
+
+| | |
+| --- | --- |
+| **The home address** | Free, immediate, and published forever alongside the legal name. For a business run from home this is the default nobody decides on, and it is the one worth deciding on. |
+| **A commercial virtual address** | A real staffed street address rather than a box, which is what makes it qualify. Roughly **$10–$30/month** for ordinary plans, with budget tiers from about $6; every provider requires a **notarised USPS Form 1583**, included free by some and around $25 elsewhere. |
+| **The LLC's registered agent address** | Already a street address and already on public record for this entity, so it publishes nothing new. Whether the service permits its use as a general business address varies by provider and is worth one email before relying on it. |
+
+Prices move; treat the range as an order of magnitude and check the provider.
+
 ### The submission, field by field
 
 Fill this in, then type it in once.
@@ -192,14 +228,14 @@ Fill this in, then type it in once.
 | Field | Value |
 | --- | --- |
 | **Service provider's full legal name** | `Pointer Technologies LLC` |
-| **Physical street address** | [[TO CONFIRM: a real street address, and note that **it is published**. `legal/copyright-and-takedown.md` warns that a PO box alone may not suffice; confirm with the Office rather than assuming either way]] |
+| **Physical street address** | [[DECIDE: see the three options above. **Published.** Must be a street address — a PO box needs a personal-safety waiver]] |
 | **Alternative names** | See the list below |
-| **Designated agent — name** | [[TO CONFIRM: a person or a role, e.g. "Copyright Agent"]] |
+| **Designated agent — name** | **A role, not a person.** The FAQ permits "a specific position or title held by an individual (e.g., 'Copyright Manager')" or a department. `Copyright Agent` or `Copyright Compliance` both qualify, and a role survives the person holding it — which for a one-person LLC is the difference between amending the designation and not. |
 | **Designated agent — organization** | `Pointer Technologies LLC` |
-| **Designated agent — address** | May be the same as above |
-| **Designated agent — telephone** | [[TO CONFIRM]] |
-| **Designated agent — email** | [[TO CONFIRM. `legal/copyright-and-takedown.md` leaves this blank too, and the same value must go in both. Whatever is chosen must be a mailbox that exists and is monitored before this is filed]] |
-| **Primary administrative contact** | [[TO CONFIRM — this one is not published; it is how the Office reaches you about the designation]] |
+| **Designated agent — address** | May be the same as above, **or a PO box** — no waiver needed for this field. |
+| **Designated agent — telephone** | [[TO CONFIRM. Published]] |
+| **Designated agent — email** | `copyright@milepostfamily.com` once step 4 stands it up. The same value must go in `legal/copyright-and-takedown.md`, and the mailbox must exist and be monitored **before** this is filed. |
+| **Primary administrative contact** | [[TO CONFIRM — name, phone, email. **Not published**; it is how the Office reaches you about the designation itself]] |
 
 #### Alternative names to list
 
@@ -207,15 +243,20 @@ Each domain needs only its top-level form; subdomains are covered.
 
 - `Milepost Family` — the registered trade name. §1.
 - `Milepost` — the product name, and what the public will actually type.
-- `milepostfamily.com`
-- [[TO CONFIRM: the second registered domain]]
-- [[TO CONFIRM: the third registered domain]]
-- [[TO CONFIRM: the fourth registered domain]]
+- `milepostfamily.com` — the primary.
+- `homeschoolmilepost.com`
+- `milepost.family`
+- `milepost-family.com`
 
-> The design document records four registered domains but does not name them. List all four here
-> before filing — an amendment later costs another $6 and resets the clock, which is harmless, but
-> a domain that answers with no agent findable behind it is the failure this filing exists to
-> prevent.
+> **The four domains, filled in 11 September 2026.** The design document records
+> that there are four and does not name them; these are the four as stated —
+> `milepostfamily.com` primary, the other three redirects. Worth one glance
+> against the registrar before typing, since this is the list that makes the
+> agent findable and nothing else in either document cross-checks it.
+>
+> An amendment later costs another $6 and resets the three-year clock, which is
+> harmless. A domain that answers with no agent findable behind it is the
+> failure this filing exists to prevent.
 
 ### The other half, which is easy to forget
 
@@ -238,11 +279,18 @@ designation goes on file.
    gate the trade name** — form NR-3 asks for no registration number.
 2. ~~Search the WV register.~~ Done 4 September 2026.
 3. ~~File the trade name.~~ **Done 4 September 2026 — `Milepost Family`.**
-4. Stand up the `copyright@` mailbox and confirm someone monitors it.
+4. Stand up `copyright@milepostfamily.com` and confirm someone monitors it.
+   Nothing else in this list can be finished first: the address goes in the
+   designation *and* in `copyright-and-takedown.md`, and filing against a
+   mailbox that does not yet exist is filing a dead contact.
 5. File the DMCA designation, $6, with both `Milepost Family` and `Milepost` on
-   it. **Blocked only on the `[[TO CONFIRM]]` fields above** — a published
-   street address, the agent's name, phone and email, the administrative
-   contact, and the three domains this document does not know.
+   it. **Now blocked on three things, not six** — the four domains are filled
+   in above, the agent is a role rather than a person, and the agent email
+   follows from step 4. What is left:
+   - **the published street address** — a decision, not a blank. See the three
+     options above.
+   - **a published telephone number** for the agent.
+   - **the administrative contact**, which is not published.
 6. Publish `legal/copyright-and-takedown.md` with the agent block, linked from the site footer.
 7. Rename the marketing site: footer, attribution string, and anywhere the
    entity is named. No longer deferred — the name is granted.

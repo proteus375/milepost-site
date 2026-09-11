@@ -37,7 +37,11 @@ from django.views.decorators.http import require_GET
 
 from accounts.models import Account
 from billing.models import entitlement_refusal
-from catalog.models import Listing, record_acquisition
+from catalog.models import (
+    GRADE_MAX, GRADE_MIN, RESERVED_SLUGS, Listing, Subject,
+    record_acquisition, slug_for, unique_slug,
+)
+from catalog.packs import attach
 
 from .auth import Refused, authenticate
 from .licence import NoSigningKey, issue
@@ -167,9 +171,27 @@ def _plan_json(plan):
     }
 
 
-@require_GET
 @machine_endpoint
 def plans(request):
+    """GET lists the catalogue; POST is §D's push. One address, two verbs.
+
+    A pushed plan is a new member of this collection, which is what POST to a
+    collection means. Giving publication its own verb-shaped address --
+    `plans/publish/` -- would put a word that is already a *status* on this
+    model into the URL space, where it would then have to be explained every
+    time somebody wondered whether hitting it published anything. It does not:
+    see `push`.
+    """
+    if request.method == 'POST':
+        return push(request)
+    if request.method != 'GET':
+        return JsonResponse(
+            {'error': 'method_not_allowed'}, status=405,
+        )
+    return _catalogue(request)
+
+
+def _catalogue(request):
     """The catalogue, to any authenticated installation.
 
     NO ENTITLEMENT CHECK, AND THAT IS THE DESIGN RATHER THAN AN OMISSION.
@@ -243,32 +265,9 @@ def pack(request, slug):
     how it says so. That parameter is inside the signature; see `auth.py`,
     where it was not until this endpoint needed it.
     """
-    subject = request.GET.get('subject')
-    if not subject:
-        return JsonResponse(
-            {'error': 'bad_request',
-             'detail': 'A download names the subject requesting it.'},
-            status=400,
-        )
-
-    try:
-        account = Account.objects.get(subject=subject)
-    except (Account.DoesNotExist, ValidationError, ValueError, TypeError):
-        # ValidationError is in that tuple because a UUIDField raises it, not
-        # ValueError, when the text is not a UUID -- so `?subject=hello` was a
-        # 500 until a test sent one. An endpoint on this channel turning
-        # unparseable input into a server error is a free denial of service and
-        # a stack trace in a log for anybody who can reach it.
-        #
-        # All of them answer as "linked to a different installation" does:
-        # both are "not yours to ask for", and telling them apart turns this
-        # endpoint into a way to test whether a subject id exists.
-        return _not_yours()
-
-    if not InstallationLink.objects.filter(
-        installation=request.installation, account=account,
-    ).exists():
-        return _not_yours()
+    account, problem = _publisher(request)
+    if problem:
+        return problem
 
     refusal = entitlement_refusal(account)
     if refusal:
@@ -311,3 +310,229 @@ def _not_yours():
          'detail': 'That subject is not linked to this installation.'},
         status=403,
     )
+
+
+def _publisher(request):
+    """The account a machine request is acting for, or a refusal.
+
+    Returns `(account, None)` or `(None, response)`. Shared by pull and push
+    because the question is identical -- a subject id proves nothing on its own,
+    since subject ids travel in every licence document this channel hands out,
+    and a link to *this* installation is what makes it mean anything.
+    """
+    subject = request.GET.get('subject') or request.POST.get('subject')
+    if not subject:
+        return None, JsonResponse(
+            {'error': 'bad_request',
+             'detail': 'This names the subject it is acting for.'},
+            status=400,
+        )
+    try:
+        account = Account.objects.get(subject=subject)
+    except (Account.DoesNotExist, ValidationError, ValueError, TypeError):
+        # ValidationError is in that tuple because a UUIDField raises it, not
+        # ValueError, when the text is not a UUID -- so `?subject=hello` was a
+        # 500 until a test sent one. Unparseable input becoming a server error
+        # on a channel anybody with a credential can reach is a free denial of
+        # service and a stack trace in a log for the asking.
+        #
+        # All of them answer as "linked to a different installation" does:
+        # both are "not yours to ask for", and telling them apart turns this
+        # into a way to test whether a subject id exists.
+        return None, _not_yours()
+
+    if not InstallationLink.objects.filter(
+        installation=request.installation, account=account,
+    ).exists():
+        return None, _not_yours()
+    return account, None
+
+
+def push(request):
+    """§D's push. An instance publishes a plan it built.
+
+    WHAT IT DOES NOT DO IS PUBLISH. §D's step 4 says the marketplace "stores it
+    as a draft listing"; step 5 is "moderation, then published". The status it
+    lands in is IN_REVIEW rather than DRAFT, and the difference is who is
+    waiting: the author already pressed Publish in their own instance and is
+    done, so a DRAFT would be a submission nobody is holding and nothing moves.
+    IN_REVIEW is the rung on this model's ladder that means exactly "submitted,
+    awaiting moderation", which is the state §D's two steps describe between
+    them.
+
+    Nothing here can make it public. `Listing.publish` is the only thing that
+    does, it refuses without a recorded acceptance of the publisher terms, and
+    the terms are unreviewed drafts -- so publication remains where
+    `catalog.views` says it is: blocked on counsel, not on code.
+
+    THE PACK IS RE-VALIDATED WITH THIS PROJECT'S OWN PARSER. §D step 4, and it
+    is the reason `catalog.packs` takes bytes rather than a trusted summary:
+    "re-validates independently with its own copy of the parser, trusting
+    nothing". The manifest names an owner and that name is written by whoever
+    built the archive, so it is recorded as `pack_manifest` and believed about
+    nothing.
+
+    THE TWO IDENTITY CHECKS ARE §D STEP 4'S OTHER HALF. The subject must be
+    linked to this installation, and -- when publishing as an organisation --
+    the installation must be bound to that organisation and the account must be
+    a member of it. §C.4.3: "a publish is accepted only when both hold", and
+    the failures are different, so they are answered differently.
+    """
+    account, refusal = _publisher(request)
+    if refusal:
+        return refusal
+
+    # §B.3 lists `marketplace.publish` alongside `marketplace.download`.
+    # Publishing costs a subscription, which is also what makes §H.4's
+    # PUBLISHED badge cost something.
+    not_entitled = entitlement_refusal(account)
+    if not_entitled:
+        return JsonResponse(
+            {'error': 'not_entitled', 'detail': not_entitled}, status=402,
+        )
+
+    upload = request.FILES.get('pack')
+    if upload is None:
+        return JsonResponse(
+            {'error': 'bad_request', 'detail': 'A push carries a pack.'},
+            status=400,
+        )
+
+    fields, problem = _plan_fields(request)
+    if problem:
+        return problem
+
+    owner_account, owner_organisation, problem = _owner(request, account)
+    if problem:
+        return problem
+
+    listing = Listing(
+        slug=unique_slug(fields['title']),
+        owner_account=owner_account,
+        owner_organisation=owner_organisation,
+        contributed_by=account,
+        status=Listing.Status.IN_REVIEW,
+        **fields,
+    )
+    try:
+        # Validated before anything is written, so a refused pack leaves
+        # nothing behind -- including no listing. `attach` saves; this is the
+        # only place the row is created.
+        attach(listing, upload.read())
+    except ValidationError as refused:
+        return JsonResponse(
+            {'error': 'bad_pack',
+             'detail': '; '.join(refused.messages)},
+            status=400,
+        )
+
+    return JsonResponse(
+        {'format': CATALOGUE_FORMAT, 'plan': _plan_json(listing),
+         'status': listing.status},
+        status=201,
+    )
+
+
+def _plan_fields(request):
+    """The listing's own fields, validated. `(fields, None)` or `(None, response)`.
+
+    `subject_area` rather than `subject`, and the rename is worth explaining
+    because it looks like gratuitous divergence from the model. On this channel
+    `subject` already means §B.3's opaque marketplace subject id -- it is that
+    in the licence payload and in pull's query string -- and a word that means
+    an opaque person id in one field and "science" in the next is a bug waiting
+    for somebody to be tired. One meaning per name, and the curriculum field is
+    the one that moved because it is the one with an alternative.
+    """
+    title = (request.POST.get('title') or '').strip()
+    summary = (request.POST.get('summary') or '').strip()
+    area = request.POST.get('subject_area')
+
+    if not title or not summary:
+        return None, JsonResponse(
+            {'error': 'bad_request',
+             'detail': 'A plan needs a title and a summary.'}, status=400,
+        )
+    if slug_for(title) in RESERVED_SLUGS:
+        return None, JsonResponse(
+            {'error': 'bad_request', 'detail': 'That title is reserved.'},
+            status=400,
+        )
+    if area not in Subject.values:
+        return None, JsonResponse(
+            {'error': 'bad_request',
+             'detail': f'subject_area must be one of: {", ".join(Subject.values)}.'},
+            status=400,
+        )
+
+    try:
+        low = int(request.POST.get('grade_min', GRADE_MIN))
+        high = int(request.POST.get('grade_max', GRADE_MAX))
+    except ValueError:
+        return None, JsonResponse(
+            {'error': 'bad_request', 'detail': 'Grades are integers.'},
+            status=400,
+        )
+    if not (GRADE_MIN <= low <= GRADE_MAX and GRADE_MIN <= high <= GRADE_MAX):
+        return None, JsonResponse(
+            {'error': 'bad_request',
+             'detail': f'Grades run from {GRADE_MIN} to {GRADE_MAX}.'},
+            status=400,
+        )
+    if low > high:
+        # Checked here as well as by the database constraint, for the reason
+        # `PlanForm.clean` gives: the constraint is what makes it true, this is
+        # what makes it a sentence rather than an IntegrityError.
+        return None, JsonResponse(
+            {'error': 'bad_request',
+             'detail': 'The lowest grade cannot be above the highest.'},
+            status=400,
+        )
+
+    return {
+        'title': title[:150],
+        'summary': summary[:300],
+        'description': (request.POST.get('description') or '').strip(),
+        'subject': area,
+        'grade_min': low,
+        'grade_max': high,
+    }, None
+
+
+def _owner(request, account):
+    """Who holds the listing. `(account, organisation, None)` or `(.., response)`.
+
+    §C.4.2's three references, decided here: exactly one owner, plus
+    `contributed_by`, which the caller sets to the publishing account whichever
+    owner applies.
+    """
+    publish_as = request.POST.get('publish_as')
+    if not publish_as:
+        return account, None, None
+
+    organisation = request.installation.organisation
+    if organisation is None or organisation.slug != publish_as:
+        # §C.4.3's installation layer. The installation names the ONLY
+        # organisation it may publish as, and a mismatch is a misconfigured
+        # deployment rather than a permissions problem -- which is why it does
+        # not say the same thing as the member check below.
+        return None, None, JsonResponse(
+            {'error': 'not_bound',
+             'detail': 'This installation is not bound to that organisation.'},
+            status=403,
+        )
+    if not organisation.is_active:
+        return None, None, JsonResponse(
+            {'error': 'organisation_closed',
+             'detail': 'That organisation is closed and cannot publish.'},
+            status=403,
+        )
+    if not organisation.can_publish(account):
+        # §C.4.3's person layer. A non-member publishing from a bound
+        # installation is a permissions error, and stays a separate answer.
+        return None, None, JsonResponse(
+            {'error': 'not_a_member',
+             'detail': 'That account is not a member of that organisation.'},
+            status=403,
+        )
+    return None, organisation, None

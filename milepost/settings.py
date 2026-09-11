@@ -105,6 +105,33 @@ if SECRET_KEY is None:
 # with a 503 that says what is missing. See `instances.licence.signing_key`.
 LICENCE_SIGNING_KEY = env('LICENCE_SIGNING_KEY')
 
+# THE NONCE STORE, WHICH IS WHY THERE IS A CACHE AT ALL.
+#
+# §D's push accepts an upload over the machine channel, and a replayed upload
+# is a duplicate listing. `instances.auth` bounds replay to a five-minute
+# window by signing the timestamp; closing it needs somewhere to remember which
+# signatures have already been spent, and that somewhere has to be shared by
+# every worker process or it remembers nothing.
+#
+# Django's default `LocMemCache` is PER PROCESS, which would make this look
+# like it worked -- one worker refuses the replay, the next three accept it --
+# and is exactly the shape of failure that never shows up in development, where
+# there is one process. So the default is the database: one table, no service
+# to deploy, monitor or lose, and entirely adequate at a volume where the
+# writes are one per upload.
+#
+# Run `manage.py createcachetable` once per deployment. The test runner creates
+# it automatically.
+#
+# `CACHE_URL` is not read here because there is nothing to point it at yet.
+# When a real cache arrives, this is one dict and a requirement.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'milepost_cache',
+    },
+}
+
 ALLOWED_HOSTS = env_list(
     'DJANGO_ALLOWED_HOSTS',
     default=['localhost', '127.0.0.1'] if DEBUG else [],

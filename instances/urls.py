@@ -18,6 +18,7 @@ from . import views
 
 urlpatterns = [
     path('licence/', views.licence, name='machine_licence'),
+    # GET lists, POST pushes. See `views.plans`.
     path('plans/', views.plans, name='machine_plans'),
     path('plans/<slug:slug>/', views.plan, name='machine_plan'),
     path('plans/<slug:slug>/pack/', views.pack, name='machine_pack'),

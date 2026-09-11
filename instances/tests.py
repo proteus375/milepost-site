@@ -28,11 +28,13 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, Ed25519PublicKey,
 )
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.test import TestCase, override_settings
+from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from django.utils import timezone
 from io import StringIO
 
@@ -44,7 +46,7 @@ from catalog.models import (
 from catalog.packs import attach
 from catalog.tests import a_pack
 
-from .auth import CLOCK_SKEW, sign
+from .auth import CLOCK_SKEW, new_nonce, sign
 from .licence import LICENCE_FORMAT, NoSigningKey, build, issue
 from .views import MAX_LIMIT
 from .models import Installation, InstallationLink
@@ -100,17 +102,19 @@ class MachineFixture(TestCase):
         return Installation.provision(name=name, organisation=organisation)
 
     def call(self, secret, installation, url=LICENCE_URL, method='GET',
-             timestamp=None, body=b'', signature=None, path_signed=None):
+             timestamp=None, body=b'', signature=None, path_signed=None,
+             nonce=None):
         """`url` is signed whole, query string included -- which is the point
         of `auth.string_to_sign` taking a full path. A test helper that signed
         only the path would pass while the verifier was wrong."""
         timestamp = int(time.time()) if timestamp is None else timestamp
+        nonce = new_nonce() if nonce is None else nonce
         signature = signature if signature is not None else sign(
-            secret, method, path_signed or url, timestamp, body,
+            secret, method, path_signed or url, timestamp, nonce, body,
         )
         header = (
             f'Milepost-HMAC installation={installation.identifier}, '
-            f'ts={timestamp}, sig={signature}'
+            f'ts={timestamp}, nonce={nonce}, sig={signature}'
         )
         return self.client.generic(
             method, url, data=body, HTTP_AUTHORIZATION=header,
@@ -659,11 +663,11 @@ class TheQueryStringIsSignedTests(MachineFixture):
     def test_changing_a_parameter_invalidates_the_signature(self):
         signed_for = '/machine/v1/plans/anything/pack/?subject=aaaa'
         tampered = '/machine/v1/plans/anything/pack/?subject=bbbb'
-        timestamp = int(time.time())
+        timestamp, nonce = int(time.time()), new_nonce()
         header = (
             f'Milepost-HMAC installation={self.installation.identifier}, '
-            f'ts={timestamp}, '
-            f'sig={sign(self.secret, "GET", signed_for, timestamp, b"")}'
+            f'ts={timestamp}, nonce={nonce}, '
+            f'sig={sign(self.secret, "GET", signed_for, timestamp, nonce, b"")}'
         )
 
         self.assertEqual(
@@ -676,11 +680,11 @@ class TheQueryStringIsSignedTests(MachineFixture):
         is simply not linked here. Proving the signature was accepted is the
         point -- a 401 would mean this test proved nothing about signing."""
         signed_for = '/machine/v1/plans/anything/pack/?subject=aaaa'
-        timestamp = int(time.time())
+        timestamp, nonce = int(time.time()), new_nonce()
         header = (
             f'Milepost-HMAC installation={self.installation.identifier}, '
-            f'ts={timestamp}, '
-            f'sig={sign(self.secret, "GET", signed_for, timestamp, b"")}'
+            f'ts={timestamp}, nonce={nonce}, '
+            f'sig={sign(self.secret, "GET", signed_for, timestamp, nonce, b"")}'
         )
 
         self.assertEqual(
@@ -921,3 +925,287 @@ class PullingAPackTests(MachineFixture):
         self.assertEqual(
             self.call(self.secret, self.installation, url=url).status_code, 403,
         )
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), LICENCE_SIGNING_KEY=SIGNING_KEY)
+class PushFixture(MachineFixture):
+    """§D's push: an instance publishes a plan it built.
+
+    The thing to keep straight is that this endpoint cannot make anything
+    public. §D step 4 stores it, step 5 is "moderation, then published", and
+    publication is still blocked on counsel rather than on code.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.installation, self.secret = self.provision()
+        self.priya = self.person('priya')
+        self.paid_household(self.priya, name='The Priyas')
+        InstallationLink.objects.create(
+            installation=self.installation, account=self.priya,
+        )
+
+    def post(self, account=None, pack=None, url=None, nonce=None, **fields):
+        account = account or self.priya
+        payload = {
+            'subject': str(account.subject),
+            'title': 'A Year of Botany',
+            'summary': 'Thirty-six weeks of plants, mostly outdoors.',
+            'subject_area': Subject.SCIENCE,
+            'grade_min': '3',
+            'grade_max': '6',
+        }
+        payload.update({k: v for k, v in fields.items() if v is not None})
+        for key in [k for k, v in fields.items() if v is None]:
+            payload.pop(key, None)
+        payload['pack'] = SimpleUploadedFile(
+            'plan.coursepack', a_pack() if pack is None else pack,
+        )
+
+        url = url or '/machine/v1/plans/'
+        timestamp = int(time.time())
+        nonce = new_nonce() if nonce is None else nonce
+        # A multipart body is built by the test client, so the signature has to
+        # be over the bytes it will actually send. Encoding it here is the only
+        # way to sign what goes out rather than what we meant to send.
+        body = encode_multipart(BOUNDARY, payload)
+        header = (
+            f'Milepost-HMAC installation={self.installation.identifier}, '
+            f'ts={timestamp}, nonce={nonce}, '
+            f'sig={sign(self.secret, "POST", url, timestamp, nonce, body)}'
+        )
+        # `generic` rather than `post`: the test client re-encodes when the
+        # content type is multipart, and the body has to reach the server as
+        # the exact bytes that were signed.
+        return self.client.generic(
+            'POST', url, data=body, content_type=MULTIPART_CONTENT,
+            HTTP_AUTHORIZATION=header,
+        )
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), LICENCE_SIGNING_KEY=SIGNING_KEY)
+class PushingAPlanTests(PushFixture):
+    """§D's push: an instance publishes a plan it built.
+
+    The thing to keep straight is that this endpoint cannot make anything
+    public. §D step 4 stores it, step 5 is "moderation, then published", and
+    publication is still blocked on counsel rather than on code.
+    """
+
+    def test_a_pushed_plan_lands_for_moderation(self):
+        response = self.post()
+
+        self.assertEqual(response.status_code, 201)
+        plan = Listing.objects.get()
+        self.assertEqual(plan.status, Listing.Status.IN_REVIEW)
+        self.assertEqual(plan.title, 'A Year of Botany')
+
+    def test_and_is_not_visible_to_anybody(self):
+        """The whole point of it not being PUBLISHED. Step 5 is moderation."""
+        self.post()
+        self.assertEqual(Listing.objects.visible().count(), 0)
+
+    def test_the_pack_is_stored_and_inspected(self):
+        """§D step 4: re-validated independently with this project's own copy
+        of the parser, trusting nothing the uploader said about it."""
+        self.post()
+        plan = Listing.objects.get()
+
+        self.assertTrue(plan.has_pack)
+        self.assertTrue(plan.pack_sha256)
+        self.assertEqual(plan.pack_module_count, 1)
+        self.assertEqual(plan.pack_page_count, 2)
+
+    def test_the_contributor_is_recorded_whoever_owns_it(self):
+        self.post()
+        self.assertEqual(Listing.objects.get().contributed_by, self.priya)
+
+    def test_a_rubbish_pack_is_refused_and_leaves_no_listing(self):
+        """Validated before anything is written. A refused pack must not leave
+        a listing behind with nothing on it."""
+        response = self.post(pack=b'this is not a zip')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Listing.objects.count(), 0)
+
+    def test_an_unlinked_subject_cannot_push(self):
+        stranger = self.person('stranger')
+        self.paid_household(stranger, name='The Strangers')
+        self.assertEqual(self.post(account=stranger).status_code, 403)
+
+    def test_nor_can_one_whose_household_has_lapsed(self):
+        """§B.3 lists `marketplace.publish` alongside `marketplace.download`.
+        Publishing costs a subscription, which is also what makes §H.4's
+        PUBLISHED badge cost something."""
+        lapsed = self.person('lapsed')
+        self.paid_household(lapsed, name='The Lapsed', entitled=False)
+        InstallationLink.objects.create(
+            installation=self.installation, account=lapsed,
+        )
+        self.assertEqual(self.post(account=lapsed).status_code, 402)
+
+    def test_a_push_with_no_pack_is_a_400(self):
+        response = self.post(pack=b'')
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_reserved_title_is_refused(self):
+        self.assertEqual(self.post(title='New').status_code, 400)
+
+    def test_an_unknown_subject_area_is_refused(self):
+        self.assertEqual(self.post(subject_area='VIBES').status_code, 400)
+
+    def test_backwards_grades_are_refused_with_a_sentence(self):
+        response = self.post(grade_min='9', grade_max='2')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b'cannot be above', response.content)
+
+    def test_two_plans_with_one_title_get_different_addresses(self):
+        """The slug rule moved to `catalog.models` precisely so this door
+        obeys it. Telling the second publisher their title is taken is a worse
+        answer than giving them botany-2."""
+        self.post()
+        self.post()
+
+        slugs = sorted(Listing.objects.values_list('slug', flat=True))
+        self.assertEqual(slugs, ['a-year-of-botany', 'a-year-of-botany-2'])
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), LICENCE_SIGNING_KEY=SIGNING_KEY)
+class PushingAsTheCoOpTests(PushFixture):
+    """§C.4.3's two layers, which fail for different reasons and say so."""
+
+    def setUp(self):
+        super().setUp()
+        self.co_op = Organisation(slug='oak-hill', name='Oak Hill Co-op')
+        self.co_op.full_clean()
+        self.co_op.save()
+
+    def bind(self):
+        self.installation.organisation = self.co_op
+        self.installation.save(update_fields=['organisation'])
+
+    def test_a_member_on_a_bound_installation_publishes_as_the_co_op(self):
+        self.bind()
+        self.co_op.add_member(self.priya)
+
+        self.assertEqual(self.post(publish_as='oak-hill').status_code, 201)
+        plan = Listing.objects.get()
+        self.assertEqual(plan.owner_organisation, self.co_op)
+        self.assertIsNone(plan.owner_account)
+        self.assertEqual(plan.contributed_by, self.priya)
+
+    def test_a_member_on_an_unbound_installation_cannot(self):
+        """A misconfigured deployment, and it does not say the same thing as
+        the permissions failure below."""
+        self.co_op.add_member(self.priya)
+        response = self.post(publish_as='oak-hill')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'not bound', response.content.lower())
+
+    def test_a_non_member_on_a_bound_installation_cannot_either(self):
+        self.bind()
+        response = self.post(publish_as='oak-hill')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'not a member', response.content.lower())
+
+    def test_nor_can_anybody_once_the_co_op_has_closed(self):
+        self.bind()
+        self.co_op.add_member(self.priya)
+        self.co_op.is_active = False
+        self.co_op.save(update_fields=['is_active'])
+
+        self.assertEqual(self.post(publish_as='oak-hill').status_code, 403)
+
+    def test_naming_an_organisation_the_installation_is_not_bound_to(self):
+        """Binding to one co-op does not license publishing as another."""
+        self.bind()
+        other = Organisation(slug='elsewhere', name='Elsewhere Co-op')
+        other.full_clean()
+        other.save()
+        other.add_member(self.priya)
+
+        self.assertEqual(self.post(publish_as='elsewhere').status_code, 403)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), LICENCE_SIGNING_KEY=SIGNING_KEY)
+class ReplayingAPushTests(PushFixture):
+    """The nonce store, which is why §D's push waited for one.
+
+    A replayed GET re-fetches a document the caller was entitled to anyway. A
+    replayed POST is a second listing, from one act of publishing.
+    """
+
+    def signed_post(self):
+        """One request, built once, sendable twice. Which is the attack."""
+        payload = {
+            'subject': str(self.priya.subject),
+            'title': 'A Year of Botany',
+            'summary': 'Thirty-six weeks of plants.',
+            'subject_area': Subject.SCIENCE,
+            'grade_min': '3',
+            'grade_max': '6',
+            'pack': SimpleUploadedFile('plan.coursepack', a_pack()),
+        }
+        url = '/machine/v1/plans/'
+        timestamp, nonce = int(time.time()), new_nonce()
+        body = encode_multipart(BOUNDARY, payload)
+        header = (
+            f'Milepost-HMAC installation={self.installation.identifier}, '
+            f'ts={timestamp}, nonce={nonce}, '
+            f'sig={sign(self.secret, "POST", url, timestamp, nonce, body)}'
+        )
+        return lambda: self.client.generic(
+            'POST', url, data=body, content_type=MULTIPART_CONTENT,
+            HTTP_AUTHORIZATION=header,
+        )
+
+    def test_the_same_request_twice_creates_one_listing(self):
+        send = self.signed_post()
+
+        self.assertEqual(send().status_code, 201)
+        self.assertEqual(send().status_code, 401)
+        self.assertEqual(Listing.objects.count(), 1)
+
+    def test_but_two_genuine_pushes_both_work(self):
+        """The check must not refuse a client that legitimately publishes
+        twice -- different bodies mean different signatures."""
+        self.assertEqual(self.post().status_code, 201)
+        self.assertEqual(self.post(title='Another Year').status_code, 201)
+        self.assertEqual(Listing.objects.count(), 2)
+
+    def test_a_repeated_GET_is_not_refused(self):
+        """Only unsafe methods are spent. A client retrying an identical read
+        after a timeout is doing the correct thing and must not be punished
+        for it."""
+        timestamp, nonce = int(time.time()), new_nonce()
+        signature = sign(self.secret, 'GET', LICENCE_URL, timestamp, nonce, b'')
+        same = dict(timestamp=timestamp, nonce=nonce, signature=signature)
+
+        # Byte-for-byte the same request, three times. A read is not spent.
+        for _ in range(3):
+            self.assertEqual(
+                self.call(self.secret, self.installation, **same).status_code,
+                200,
+            )
+
+    def test_a_reused_nonce_is_refused_even_with_a_different_body(self):
+        """The nonce is what is spent, not the signature. A second push that
+        differs in every other way but reuses the nonce is still a nonce
+        somebody has already used, and the store cannot tell which of the two
+        was the attacker."""
+        nonce = new_nonce()
+        self.assertEqual(self.post(nonce=nonce).status_code, 201)
+        self.assertEqual(
+            self.post(nonce=nonce, title='A Different Year').status_code, 401,
+        )
+
+    def test_two_identical_pushes_in_one_second_both_land(self):
+        """The case the first draft got wrong. Using the signature as the
+        nonce meant two byte-identical pushes in the same second collided, and
+        the second genuine one was refused as a replay with a message saying
+        it had already been used -- by somebody who had used nothing."""
+        self.assertEqual(self.post().status_code, 201)
+        self.assertEqual(self.post().status_code, 201)
+        self.assertEqual(Listing.objects.count(), 2)

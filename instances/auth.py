@@ -19,15 +19,19 @@ credential itself. An HMAC sends a signature derived from the secret, over
 material that is useless elsewhere. This is the benefit that does not depend on
 anybody's threat model being right.
 
-**Replay is bounded rather than solved.** The timestamp is signed and must be
-within `CLOCK_SKEW`, so a captured request is replayable for minutes rather
-than forever. Closing it completely needs a nonce store, which needs the shared
-cache this project does not yet have -- and the only endpoint on this channel
-today is an idempotent GET, where a replay re-fetches a document the caller was
-entitled to anyway. **That stops being true the moment §D's push endpoint
-lands**, where a replayed upload is a duplicate listing, so the nonce store is
-a prerequisite for that commit and not for this one. Adding it changes nothing
-on the wire, which is why it can wait.
+**Replay is bounded by the timestamp and closed by the nonce store.** The
+timestamp is signed and must be within `CLOCK_SKEW`, so a captured request is
+replayable for minutes rather than forever. `spend_once` closes the remaining
+window for the requests where it matters, and the signature itself is the
+nonce: it is unique per request by construction, so nothing extra has to be
+generated, agreed on, or carried.
+
+**Only unsafe methods are checked, and that is deliberate.** A replayed GET
+re-fetches a document the caller was entitled to anyway; a replayed POST is a
+duplicate listing. Spending a GET's signature would mean a client that retries
+an identical request after a timeout -- which is the correct thing for a client
+to do -- gets refused for it. The cost of the check lands only where the
+benefit is.
 
 **The body is signed, not just the envelope.** Nothing on this channel takes a
 body yet. Including its hash now means the push endpoint does not need a new
@@ -35,11 +39,26 @@ signature scheme, and a scheme change is the expensive thing here.
 
 THE HEADER
 ------------
-    Authorization: Milepost-HMAC installation=<uuid>, ts=<unix seconds>, sig=<hex>
+    Authorization: Milepost-HMAC installation=<uuid>, ts=<unix seconds>,
+                   nonce=<random hex>, sig=<hex>
 
 and the signed string is, with real newlines:
 
-    <METHOD>\n<path with query>\n<ts>\n<sha256 hex of the body, empty if none>
+    <METHOD>\n<path with query>\n<ts>\n<nonce>\n<sha256 of body, empty if none>
+
+THE NONCE IS EXPLICIT, AND THE FIRST DRAFT TRIED TO DO WITHOUT ONE
+--------------------------------------------------------------------
+It used the signature itself as the nonce, on the reasoning that a signature is
+unique per request already. That is true of every *distinct* request and it was
+wrong, because the interesting case is not distinct: two byte-identical pushes
+in the same second produce the same signature, so the second genuine one was
+refused as a replay. A test publishing the same plan twice found it.
+
+The old behaviour could have been renamed a feature -- accidental idempotency
+against a double-submit -- and that would have been dressing up a bug. It
+refuses a legitimate request, the refusal says "already used" to somebody who
+used nothing, and it is unreproducible one second later. An explicit nonce
+costs one header field and removes the case entirely.
 
 The method and path are in it so a signature captured from one request cannot
 be replayed against a different endpoint.
@@ -66,7 +85,10 @@ deployment.
 
 import hashlib
 import hmac
+import secrets
 import time
+
+from django.core.cache import cache
 
 from .models import Installation
 
@@ -78,7 +100,7 @@ CLOCK_SKEW = 300
 SCHEME = 'Milepost-HMAC'
 
 
-def string_to_sign(method, path, timestamp, body):
+def string_to_sign(method, path, timestamp, nonce, body):
     """`path` is the full path INCLUDING the query string. See the module
     docstring -- a caller passing `request.path` here would sign less than it
     meant to, and would do it silently."""
@@ -86,11 +108,17 @@ def string_to_sign(method, path, timestamp, body):
         method.upper(),
         path,
         str(timestamp),
+        nonce,
         hashlib.sha256(body or b'').hexdigest(),
     ])
 
 
-def sign(secret, method, path, timestamp, body=b''):
+def new_nonce():
+    """What a client puts in the header. Here so both ends agree on the shape."""
+    return secrets.token_hex(16)
+
+
+def sign(secret, method, path, timestamp, nonce, body=b''):
     """Also used by the tests, and by whatever client library follows.
 
     Exported rather than inlined into the verifier because a signing rule with
@@ -99,9 +127,36 @@ def sign(secret, method, path, timestamp, body=b''):
     """
     return hmac.new(
         secret.encode('utf-8'),
-        string_to_sign(method, path, timestamp, body).encode('utf-8'),
+        string_to_sign(method, path, timestamp, nonce, body).encode('utf-8'),
         hashlib.sha256,
     ).hexdigest()
+
+
+#: Methods whose replay changes something. Everything else is a read.
+UNSAFE_METHODS = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
+
+
+def spend_once(installation, nonce):
+    """Refuse a nonce that has already been used. Raises `Refused`.
+
+    `cache.add` is the whole mechanism and it is chosen for being atomic: it
+    writes only if the key is absent and reports which happened, so two
+    concurrent replays cannot both read "not seen" and both proceed. A
+    get-then-set would be a race, and the race is precisely the thing an
+    attacker replaying a request is trying to win.
+
+    Held for twice `CLOCK_SKEW`, because that is the longest a signature can
+    still be inside its own window; past that the timestamp check refuses it
+    anyway and remembering it longer only costs rows.
+
+    A cache that is down fails CLOSED -- `cache.add` raising propagates, the
+    request is refused, and the upload does not happen. The alternative is a
+    replay window that opens exactly when the infrastructure is unhealthy,
+    which is when somebody is most likely to be poking at it.
+    """
+    key = f'machine-nonce:{installation.identifier}:{nonce}'
+    if not cache.add(key, 1, timeout=CLOCK_SKEW * 2):
+        raise Refused('Signature has already been used')
 
 
 class Refused(Exception):
@@ -123,7 +178,7 @@ def _parse(header):
         if not key or not value:
             raise Refused('Malformed authorization header')
         fields[key.strip()] = value.strip()
-    for required in ('installation', 'ts', 'sig'):
+    for required in ('installation', 'ts', 'nonce', 'sig'):
         if required not in fields:
             raise Refused(f'Authorization header has no {required}')
     return fields
@@ -157,9 +212,16 @@ def authenticate(request):
         request.method,
         request.get_full_path(),
         timestamp,
+        fields['nonce'],
         request.body,
     )
     if not hmac.compare_digest(expected, fields['sig']):
         raise Refused('Signature does not match')
+
+    # After the signature is verified, never before: an unauthenticated caller
+    # must not be able to fill the nonce store, or to burn a signature they
+    # guessed at.
+    if request.method in UNSAFE_METHODS:
+        spend_once(installation, fields['nonce'])
 
     return installation

@@ -48,6 +48,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 
 from accounts.models import Account, Organisation, OrganisationMembership
 from billing.models import household_of
@@ -75,6 +76,43 @@ GRADE_MAX = 12
 
 def grade_label(value):
     return 'K' if value == 0 else str(value)
+
+
+#: Titles that would slugify into an address `catalog/urls.py` already uses.
+#: The same class of collision RESERVED_HANDLES exists for, at a different
+#: level of the path. `plans/new/` is declared before `plans/<slug>/` and
+#: therefore wins, so a plan called "New" would not shadow it today -- but
+#: relying on declaration order means the day somebody reorders that list for
+#: tidiness, it does.
+RESERVED_SLUGS = frozenset({'new', 'yours', 'edit', 'publish'})
+
+
+def slug_for(title):
+    return slugify(title)[:80].strip('-')
+
+
+def unique_slug(title):
+    """Suffixes a taken slug rather than refusing.
+
+    `portability.unique_code` in the LMS does the same thing for course codes
+    and for the same reason: two people may reasonably name a plan "A Year of
+    Botany", and telling the second one their title is taken is a worse answer
+    than giving them botany-2.
+
+    HERE RATHER THAN ON THE FORM, WHICH IS WHERE IT STARTED. A plan can now
+    arrive two ways -- a person filling in the web form, and an instance
+    pushing over §D's machine channel -- and a slug rule that lives on the form
+    is a slug rule the second door does not obey. Two implementations of
+    "what address does this title get" is the shape that produces a collision
+    nobody can reproduce.
+    """
+    base = slug_for(title) or 'plan'
+    slug, suffix = base, 1
+    while Listing.objects.filter(slug=slug).exists():
+        suffix += 1
+        tail = f'-{suffix}'
+        slug = f'{base[:80 - len(tail)]}{tail}'
+    return slug
 
 
 class Subject(models.TextChoices):

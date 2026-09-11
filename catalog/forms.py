@@ -1,21 +1,16 @@
 """Writing a plan down. Not publishing it -- see the note in views.py."""
 
 from django import forms
-from django.utils.text import slugify
 
 from accounts.models import Organisation
 
 from . import packs
-from .models import GRADE_MAX, GRADE_MIN, Listing, Review, grade_label
+from .models import (
+    GRADE_MAX, GRADE_MIN, RESERVED_SLUGS, Listing, Review, grade_label,
+    slug_for, unique_slug,
+)
 
 GRADE_CHOICES = [(n, grade_label(n)) for n in range(GRADE_MIN, GRADE_MAX + 1)]
-
-#: Addresses `catalog.urls` claims for itself. A plan called "New" would
-#: otherwise take a slug that shadows the page for creating one -- the same
-#: class of collision RESERVED_HANDLES exists for, at a different level of
-#: the path.
-RESERVED_SLUGS = frozenset({'new', 'yours', 'edit', 'publish'})
-
 
 class PlanForm(forms.ModelForm):
     """The plan itself, plus who it belongs to.
@@ -84,24 +79,11 @@ class PlanForm(forms.ModelForm):
             raise forms.ValidationError('That title is reserved. Try another.')
         return title
 
-    def slug_for(self, title):
-        return slugify(title)[:80].strip('-')
-
-    def unique_slug(self, title):
-        """Suffixes a taken slug rather than refusing.
-
-        `portability.unique_code` in the LMS does the same thing for course
-        codes and for the same reason: two people may reasonably name a plan
-        "A Year of Botany", and telling the second one their title is taken
-        is a worse answer than giving them botany-2.
-        """
-        base = self.slug_for(title) or 'plan'
-        slug, suffix = base, 1
-        while Listing.objects.filter(slug=slug).exists():
-            suffix += 1
-            tail = f'-{suffix}'
-            slug = f'{base[:80 - len(tail)]}{tail}'
-        return slug
+    # Both live in `catalog.models` now, because §D's push creates listings
+    # too and a slug rule that lives on the form is one the machine channel
+    # does not obey. Kept as attributes here so this form reads as it did.
+    slug_for = staticmethod(slug_for)
+    unique_slug = staticmethod(unique_slug)
 
     def save(self, commit=True):
         listing = super().save(commit=False)

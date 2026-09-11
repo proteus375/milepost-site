@@ -91,9 +91,10 @@ if SECRET_KEY is None:
 # THE KEY THAT SIGNS LICENCE DOCUMENTS, AND IT IS NOT `SECRET_KEY`.
 #
 # Ed25519, base64-encoded raw private bytes. `manage.py make_licence_key`
-# generates a pair and prints both halves; the public one ships inside the
-# `homeschool-lms` release so an instance can verify a cached licence with no
-# network, which is the whole reason §B.3's document is signed at all.
+# generates a pair, writes this half into the env file, and prints only the
+# public one -- which ships inside the `homeschool-lms` release so an instance
+# can verify a cached licence with no network, which is the whole reason
+# §B.3's document is signed at all.
 #
 # Deliberately NOT defaulted, not even in development, and this is the one
 # place that departs from `SECRET_KEY`'s pattern above. A throwaway signing key

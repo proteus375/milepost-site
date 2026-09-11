@@ -88,6 +88,22 @@ if SECRET_KEY is None:
             'Set a real key; see .env.example.'
         )
 
+# THE KEY THAT SIGNS LICENCE DOCUMENTS, AND IT IS NOT `SECRET_KEY`.
+#
+# Ed25519, base64-encoded raw private bytes. `manage.py make_licence_key`
+# generates a pair and prints both halves; the public one ships inside the
+# `homeschool-lms` release so an instance can verify a cached licence with no
+# network, which is the whole reason §B.3's document is signed at all.
+#
+# Deliberately NOT defaulted, not even in development, and this is the one
+# place that departs from `SECRET_KEY`'s pattern above. A throwaway signing key
+# is worse than none: it produces documents that look right here and are
+# rejected by every instance in the field, and it does it silently. So an unset
+# key is not a startup failure -- the marketing site and the whole human
+# channel run perfectly well without one -- but the licence endpoint refuses
+# with a 503 that says what is missing. See `instances.licence.signing_key`.
+LICENCE_SIGNING_KEY = env('LICENCE_SIGNING_KEY')
+
 ALLOWED_HOSTS = env_list(
     'DJANGO_ALLOWED_HOSTS',
     default=['localhost', '127.0.0.1'] if DEBUG else [],
@@ -115,6 +131,11 @@ INSTALLED_APPS = [
     # household that made it, and a download is refused before it is recorded.
     'billing',
     'catalog',
+    # The machine channel. Arrives with `Installation`, by the same rule as the
+    # others -- and it is the app whose absence the docstring above used to
+    # name as having a visible consequence. It no longer does: an instance can
+    # authenticate and ask which of its households are paid up.
+    'instances',
 ]
 
 MIDDLEWARE = [

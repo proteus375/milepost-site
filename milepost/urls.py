@@ -27,5 +27,18 @@ urlpatterns = [
     # types /plans/a-year-of-botany/, and which app serves it is not their
     # business.
     path('', include('catalog.urls')),
+    # THE SEAM. §A: the machine channel gets "its own URL prefix, its own auth,
+    # no shared session middleware" -- and the version is in the path from the
+    # first URL because "you do not control when a customer upgrades". An
+    # instance provisioned today will still be asking for /machine/v1/ long
+    # after v2 exists, and that has to keep working or a customer's records
+    # stop syncing because of a release they never asked for.
+    #
+    # `machine/` rather than `api/`, because `api/` invites every other kind of
+    # programmatic access to land here -- a mobile app, a webhook, somebody's
+    # integration -- and none of those are this. This prefix means one thing:
+    # an installation of the LMS, authenticated by a credential an operator
+    # provisioned.
+    path('machine/v1/', include('instances.urls')),
     path('admin/', admin.site.urls),
 ]

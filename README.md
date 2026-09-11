@@ -27,9 +27,17 @@ and four apps —
 | `catalog` | Listings, packs, search, browse, moderation |
 | `instances` | Installation registration, the versioned machine API, licences |
 
-`accounts`, `catalog` and `billing` exist. `instances` does not, and is not
-scaffolded: an empty app with no models claims work has started when it has
-not, so each arrives with its first model.
+All four apps now exist. Each arrived with its first model, which is the rule
+this section used to state as a promise about `instances` and can now state as
+a fact.
+
+`instances` is the machine channel, and §A says its seam is the one worth
+building early: human browser traffic and machine instance traffic differ in
+authentication, threat model, rate limiting and — the row that decides it —
+compatibility. You control when the website ships. You do not control when a
+customer's installation upgrades. So the version is in the path from the first
+URL (`/machine/v1/`), the prefix is `machine/` rather than `api/` because this
+channel means one specific thing, and no view there touches a session.
 
 `billing` arrived with households and entitlement and **no Stripe**, which is
 worth saying because the table above lists Stripe first. What gates a download

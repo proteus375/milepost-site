@@ -68,6 +68,7 @@ whatever the rules say today.
 """
 
 import re
+import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
@@ -176,6 +177,25 @@ class Account(AbstractBaseUser, PermissionsMixin):
     is how §C's two-layer identity model gets collapsed by accident in
     conversation before it gets collapsed in code.
     """
+
+    # THE JOIN KEY FOR THE IDENTITY BRIDGE, AND IT IS NOT THE EMAIL.
+    #
+    # §C.1: "the join key is an opaque subject id stored on the local user,
+    # never an email address ... this is not a refinement, it is the thing
+    # that makes the bridge sound at all". `homeschool-lms` has a non-unique
+    # `User.email` -- the design document's Defect 1 -- so an instance that
+    # matched entitlements on email would be matching on a field that does
+    # not identify anybody.
+    #
+    # Opaque, so it reveals nothing if it appears in a log or a token; stable,
+    # because an instance stores it against a local user and a changed value
+    # would silently unlink every guardian; and `editable=False` because
+    # there is no correct reason for a human to type one.
+    subject = models.UUIDField(
+        default=uuid.uuid4, unique=True, editable=False,
+        help_text='Opaque, stable id an installation stores to identify this '
+                  'person. Never an email address.',
+    )
 
     email = models.EmailField(
         unique=True,

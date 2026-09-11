@@ -32,3 +32,14 @@ psycopg[binary]>=3.2
 whitenoise>=6.7
 
 gunicorn>=23.0
+
+# Ed25519, for signing the licence documents §B.3 designs. The private half
+# lives only on the marketplace; the public half ships inside the
+# homeschool-lms release so an instance can verify a cached licence with no
+# network at all -- which is what keeps a marketplace outage from taking a
+# family's records away (§B.5).
+#
+# `cryptography` rather than PyNaCl: it is already a transitive dependency of
+# most of this stack, and one primitive is not a reason for a second crypto
+# library with its own release cadence.
+cryptography>=43.0

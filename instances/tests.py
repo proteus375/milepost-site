@@ -38,9 +38,15 @@ from io import StringIO
 
 from accounts.models import Account, Organisation
 from billing.models import Household, HouseholdMembership
+from catalog.models import (
+    Acquisition, CONTENT_LICENCE, Listing, Subject, accept_terms,
+)
+from catalog.packs import attach
+from catalog.tests import a_pack
 
 from .auth import CLOCK_SKEW, sign
 from .licence import LICENCE_FORMAT, NoSigningKey, build, issue
+from .views import MAX_LIMIT
 from .models import Installation, InstallationLink
 
 #: A fixed keypair, so the tests do not depend on generating one and so the
@@ -95,6 +101,9 @@ class MachineFixture(TestCase):
 
     def call(self, secret, installation, url=LICENCE_URL, method='GET',
              timestamp=None, body=b'', signature=None, path_signed=None):
+        """`url` is signed whole, query string included -- which is the point
+        of `auth.string_to_sign` taking a full path. A test helper that signed
+        only the path would pass while the verifier was wrong."""
         timestamp = int(time.time()) if timestamp is None else timestamp
         signature = signature if signature is not None else sign(
             secret, method, path_signed or url, timestamp, body,
@@ -630,3 +639,285 @@ class RefusalsAreLoggedTests(MachineFixture):
             self.call(secret, installation, signature='ab' * 32)
 
         self.assertIn('Signature does not match', logged.output[0])
+
+
+@override_settings(LICENCE_SIGNING_KEY=SIGNING_KEY)
+class TheQueryStringIsSignedTests(MachineFixture):
+    """The gap the pull endpoint exposed, and the regression test for it.
+
+    v1 signed `request.path`, which Django defines as excluding the query
+    string. With one parameterless endpoint that was indistinguishable from
+    correct. The moment a download had to name WHICH guardian was asking, it
+    became a field an attacker holding a captured request could re-point at any
+    other subject on the same installation, inside the replay window.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.installation, self.secret = self.provision()
+
+    def test_changing_a_parameter_invalidates_the_signature(self):
+        signed_for = '/machine/v1/plans/anything/pack/?subject=aaaa'
+        tampered = '/machine/v1/plans/anything/pack/?subject=bbbb'
+        timestamp = int(time.time())
+        header = (
+            f'Milepost-HMAC installation={self.installation.identifier}, '
+            f'ts={timestamp}, '
+            f'sig={sign(self.secret, "GET", signed_for, timestamp, b"")}'
+        )
+
+        self.assertEqual(
+            self.client.get(tampered, HTTP_AUTHORIZATION=header).status_code,
+            401,
+        )
+
+    def test_while_the_signed_one_gets_past_authentication(self):
+        """A 403 rather than a 401: authentication succeeded and the subject
+        is simply not linked here. Proving the signature was accepted is the
+        point -- a 401 would mean this test proved nothing about signing."""
+        signed_for = '/machine/v1/plans/anything/pack/?subject=aaaa'
+        timestamp = int(time.time())
+        header = (
+            f'Milepost-HMAC installation={self.installation.identifier}, '
+            f'ts={timestamp}, '
+            f'sig={sign(self.secret, "GET", signed_for, timestamp, b"")}'
+        )
+
+        self.assertEqual(
+            self.client.get(signed_for, HTTP_AUTHORIZATION=header).status_code,
+            403,
+        )
+
+
+@override_settings(LICENCE_SIGNING_KEY=SIGNING_KEY)
+class BrowsingFromAnInstanceTests(MachineFixture):
+    """§C.6's rule on the machine channel: browse freely, link to acquire.
+
+    §B.3 removed `marketplace.browse` from the feature list deliberately --
+    gating the shop window "would mean asking someone to open an account to
+    find out whether they want one".
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.installation, self.secret = self.provision()
+        self.ada = self.person('ada')
+        accept_terms(self.ada, accepted_by=self.ada)
+
+    def published(self, slug='botany', with_pack=True):
+        plan = Listing.objects.create(
+            title='A Year of Botany', slug=slug,
+            summary='Thirty-six weeks of plants, mostly outdoors.',
+            subject=Subject.SCIENCE, grade_min=3, grade_max=6,
+            owner_account=self.ada,
+        )
+        if with_pack:
+            plan = attach(plan, a_pack())
+        return plan.publish(by=self.ada)
+
+    def listing_json(self, url='/machine/v1/plans/'):
+        return json.loads(self.call(self.secret, self.installation, url=url).content)
+
+    def test_an_installation_with_no_entitlement_at_all_may_browse(self):
+        """Nobody is linked to this installation and nobody is paying. The
+        catalogue is still the shop window."""
+        self.published()
+        body = self.listing_json()
+
+        self.assertEqual(body['total'], 1)
+        self.assertEqual(body['plans'][0]['slug'], 'botany')
+
+    def test_a_stranger_with_no_credential_may_not(self):
+        """Free to browse is not free to reach. The installation credential is
+        what gets you to the shop window at all."""
+        self.published()
+        self.assertEqual(self.client.get('/machine/v1/plans/').status_code, 401)
+
+    def test_a_draft_is_not_in_the_catalogue(self):
+        Listing.objects.create(
+            title='Not yet', slug='not-yet', summary='x',
+            subject=Subject.SCIENCE, owner_account=self.ada,
+        )
+        self.assertEqual(self.listing_json()['total'], 0)
+
+    def test_nor_is_it_reachable_by_name(self):
+        Listing.objects.create(
+            title='Not yet', slug='not-yet', summary='x',
+            subject=Subject.SCIENCE, owner_account=self.ada,
+        )
+        response = self.call(
+            self.secret, self.installation, url='/machine/v1/plans/not-yet/',
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_the_listing_carries_what_an_instance_needs_to_decide(self):
+        self.published()
+        plan = self.listing_json()['plans'][0]
+
+        self.assertEqual(plan['version'], '1')
+        self.assertEqual(plan['licence'], CONTENT_LICENCE)
+        self.assertTrue(plan['has_pack'])
+        self.assertTrue(plan['pack_sha256'])
+        self.assertEqual(plan['owner'], 'ada')
+
+    def test_it_carries_no_email_address(self):
+        """The same rule as the licence payload. A handle is already public; an
+        email address is a credential."""
+        self.published()
+        raw = self.call(self.secret, self.installation).content.decode()
+        self.assertNotIn('ada@example.com', raw)
+
+    def test_the_page_size_is_capped(self):
+        for n in range(3):
+            self.published(slug=f'plan-{n}')
+        body = self.listing_json('/machine/v1/plans/?limit=2')
+
+        self.assertEqual(len(body['plans']), 2)
+        self.assertEqual(body['total'], 3)
+
+    def test_an_absurd_limit_is_clamped_rather_than_honoured(self):
+        self.published()
+        body = self.listing_json('/machine/v1/plans/?limit=100000')
+        self.assertEqual(body['limit'], MAX_LIMIT)
+
+    def test_a_nonsense_limit_is_a_400(self):
+        response = self.call(
+            self.secret, self.installation, url='/machine/v1/plans/?limit=soon',
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), LICENCE_SIGNING_KEY=SIGNING_KEY)
+class PullingAPackTests(MachineFixture):
+    """§D's pull, which is the first endpoint on this channel that says no."""
+
+    def setUp(self):
+        super().setUp()
+        self.installation, self.secret = self.provision()
+        self.ada = self.person('ada')
+        accept_terms(self.ada, accepted_by=self.ada)
+        self.plan = attach(
+            Listing.objects.create(
+                title='A Year of Botany', slug='botany',
+                summary='Thirty-six weeks of plants.', subject=Subject.SCIENCE,
+                owner_account=self.ada,
+            ),
+            a_pack(),
+        ).publish(by=self.ada)
+        self.priya = self.person('priya')
+
+    def entitled(self, account, linked=True, paying=True):
+        self.paid_household(account, name=f'The {account.handle}s',
+                            entitled=paying)
+        if linked:
+            InstallationLink.objects.create(
+                installation=self.installation, account=account,
+            )
+        return account
+
+    def fetch(self, account, slug='botany'):
+        url = f'/machine/v1/plans/{slug}/pack/?subject={account.subject}'
+        return self.call(self.secret, self.installation, url=url)
+
+    def test_an_entitled_linked_guardian_gets_the_bytes(self):
+        self.entitled(self.priya)
+        response = self.fetch(self.priya)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['X-Milepost-Pack-Sha256'], self.plan.pack_sha256)
+        self.assertEqual(response['X-Milepost-Pack-Version'], '1')
+
+    def test_and_it_is_recorded_as_an_acquisition(self):
+        """The row a review stands on, written before the bytes go out, on the
+        same reasoning the web download uses."""
+        self.entitled(self.priya)
+        self.fetch(self.priya)
+
+        self.assertTrue(
+            Acquisition.objects.filter(
+                listing=self.plan, account=self.priya,
+            ).exists(),
+        )
+
+    def test_a_subject_linked_to_another_installation_is_refused(self):
+        """Subject ids travel -- they are in every licence document. A linked
+        account is the only thing that makes "who is asking" mean anything on a
+        channel that authenticates a machine."""
+        self.entitled(self.priya, linked=False)
+        other, _ = self.provision(name='Somebody else')
+        InstallationLink.objects.create(installation=other, account=self.priya)
+
+        self.assertEqual(self.fetch(self.priya).status_code, 403)
+
+    def test_and_records_nothing(self):
+        """The reverse test. A refused download that counts anyway is the
+        failure that would be invisible until somebody reviewed a plan they had
+        never been given."""
+        self.entitled(self.priya, linked=False)
+        self.fetch(self.priya)
+        self.assertEqual(Acquisition.objects.count(), 0)
+
+    def test_a_subject_that_does_not_exist_gets_the_same_answer(self):
+        """Telling them apart turns this into a way to test whether a subject
+        id exists."""
+        linked = self.fetch(self.entitled(self.priya, linked=False))
+        url = '/machine/v1/plans/botany/pack/?subject=11111111-1111-1111-1111-111111111111'
+        unknown = self.call(self.secret, self.installation, url=url)
+
+        self.assertEqual(linked.status_code, unknown.status_code)
+        self.assertEqual(linked.content, unknown.content)
+
+    def test_a_lapsed_household_gets_402_rather_than_403(self):
+        """The caller is who they say they are and the request is well formed;
+        what is missing is a subscription. An instance should render that
+        differently from "you may not" -- one is a thing a family can fix in a
+        minute."""
+        self.entitled(self.priya, paying=False)
+        response = self.fetch(self.priya)
+
+        self.assertEqual(response.status_code, 402)
+        self.assertIn(b'lapsed', response.content)
+
+    def test_and_that_records_nothing_either(self):
+        self.entitled(self.priya, paying=False)
+        self.fetch(self.priya)
+        self.assertEqual(Acquisition.objects.count(), 0)
+
+    def test_a_download_with_no_subject_is_a_400(self):
+        response = self.call(
+            self.secret, self.installation, url='/machine/v1/plans/botany/pack/',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_an_unpublished_plan_is_a_404_even_to_an_entitled_reader(self):
+        self.entitled(self.priya)
+        draft = Listing.objects.create(
+            title='Not yet', slug='not-yet', summary='x',
+            subject=Subject.SCIENCE, owner_account=self.ada,
+        )
+        self.assertEqual(self.fetch(self.priya, slug=draft.slug).status_code, 404)
+
+    def test_the_author_pulling_their_own_records_no_acquisition(self):
+        """An author holding their own work is not an acquisition, and the rule
+        has to hold on this channel too or the same row becomes a lie depending
+        on which door it came through."""
+        self.entitled(self.ada)
+        response = self.fetch(self.ada)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Acquisition.objects.count(), 0)
+
+    def test_an_unauthenticated_pull_is_refused_before_any_of_this(self):
+        self.entitled(self.priya)
+        url = f'/machine/v1/plans/botany/pack/?subject={self.priya.subject}'
+        self.assertEqual(self.client.get(url).status_code, 401)
+
+    def test_a_subject_that_is_not_a_uuid_is_refused_rather_than_crashing(self):
+        """A UUIDField raises ValidationError, not ValueError, on text that is
+        not a UUID -- so this was a 500 until a test sent one. Unparseable
+        input becoming a server error on a channel anybody with a credential
+        can reach is a free denial of service and a stack trace in a log."""
+        url = '/machine/v1/plans/botany/pack/?subject=hello'
+        self.assertEqual(
+            self.call(self.secret, self.installation, url=url).status_code, 403,
+        )

@@ -39,10 +39,29 @@ THE HEADER
 
 and the signed string is, with real newlines:
 
-    <METHOD>\n<path>\n<ts>\n<sha256 hex of the body, empty string hashed if none>
+    <METHOD>\n<path with query>\n<ts>\n<sha256 hex of the body, empty if none>
 
 The method and path are in it so a signature captured from one request cannot
 be replayed against a different endpoint.
+
+THE PATH INCLUDES THE QUERY STRING, AND THE FIRST VERSION DID NOT
+-------------------------------------------------------------------
+It signed `request.path`, which Django defines as excluding the query string.
+With one endpoint taking no parameters that was indistinguishable from correct,
+and it stopped being correct the moment §D's pull endpoint needed to say *which
+guardian* is downloading -- a `?subject=` outside the signature is a field an
+attacker holding a captured request can change, within the replay window, to
+any other subject on the same installation.
+
+Fixed here rather than worked around by moving the parameter into the path,
+because the parameter is not the problem: any future endpoint with a query
+string would have had the same hole, and the next person to add one would have
+had no reason to suspect it. Signing `get_full_path()` closes the class.
+
+This was free precisely because it was found before anything in the field spoke
+v1. It is exactly the change the version prefix exists to make expensive later,
+which is the argument for looking hard at this file now rather than after a
+deployment.
 """
 
 import hashlib
@@ -60,6 +79,9 @@ SCHEME = 'Milepost-HMAC'
 
 
 def string_to_sign(method, path, timestamp, body):
+    """`path` is the full path INCLUDING the query string. See the module
+    docstring -- a caller passing `request.path` here would sign less than it
+    meant to, and would do it silently."""
     return '\n'.join([
         method.upper(),
         path,
@@ -133,7 +155,7 @@ def authenticate(request):
     expected = sign(
         installation.signing_key,
         request.method,
-        request.path,
+        request.get_full_path(),
         timestamp,
         request.body,
     )

@@ -1209,3 +1209,95 @@ class ReplayingAPushTests(PushFixture):
         self.assertEqual(self.post().status_code, 201)
         self.assertEqual(self.post().status_code, 201)
         self.assertEqual(Listing.objects.count(), 2)
+
+
+class ProvisioningThroughTheAdminTests(MachineFixture):
+    """A credential shown to an operator must not also be written to a cookie.
+
+    The first version used `messages.warning`, which is the obvious thing.
+    Django's default MESSAGE_STORAGE is FallbackStorage and its first choice is
+    CookieStorage, so a message this size goes into a cookie -- the operator's
+    disk, and every subsequent request header. The whole argument for the HMAC
+    scheme is that the credential never travels; announcing one in a cookie
+    hands that back.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.operator = Account.objects.create_superuser(
+            email='ops@example.com', handle='ops',
+            password='a-long-enough-passphrase',
+        )
+        self.client.force_login(self.operator)
+
+    def cookie_blob(self, response):
+        return ''.join(str(c.value) for c in response.cookies.values())
+
+    def test_adding_one_shows_its_key_once(self):
+        response = self.client.post(
+            '/admin/instances/installation/add/',
+            {'name': 'Oak Hill', 'is_active': 'on',
+             'links-TOTAL_FORMS': '0', 'links-INITIAL_FORMS': '0'},
+        )
+        installation = Installation.objects.get(name='Oak Hill')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, installation.signing_key)
+        self.assertContains(response, str(installation.identifier))
+
+    def test_and_does_not_put_it_in_a_cookie(self):
+        response = self.client.post(
+            '/admin/instances/installation/add/',
+            {'name': 'Oak Hill', 'is_active': 'on',
+             'links-TOTAL_FORMS': '0', 'links-INITIAL_FORMS': '0'},
+        )
+        installation = Installation.objects.get(name='Oak Hill')
+        self.assertNotIn(installation.signing_key, self.cookie_blob(response))
+
+    def test_a_provisioned_installation_can_actually_authenticate(self):
+        """The reverse test. A row created through the admin with a broken or
+        blank key would refuse everything, and the operator would have no
+        indication why -- the empty string signs perfectly well and matches
+        nothing."""
+        self.client.post(
+            '/admin/instances/installation/add/',
+            {'name': 'Oak Hill', 'is_active': 'on',
+             'links-TOTAL_FORMS': '0', 'links-INITIAL_FORMS': '0'},
+        )
+        installation = Installation.objects.get(name='Oak Hill')
+        self.client.logout()
+
+        with override_settings(LICENCE_SIGNING_KEY=SIGNING_KEY):
+            response = self.call(installation.signing_key, installation)
+        self.assertEqual(response.status_code, 200)
+
+    def test_rotating_shows_the_new_key_and_not_in_a_cookie(self):
+        installation, old = self.provision()
+        response = self.client.post(
+            '/admin/instances/installation/',
+            {'action': 'rotate_signing_key',
+             '_selected_action': [str(installation.pk)]},
+        )
+        installation.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, installation.signing_key)
+        self.assertNotEqual(installation.signing_key, old)
+        self.assertNotIn(installation.signing_key, self.cookie_blob(response))
+
+    def test_the_changelist_never_shows_a_key(self):
+        """The ordinary screen an operator lands on. If a credential is
+        readable from a list view, it is readable over a shoulder and in a
+        screenshot of something else entirely."""
+        installation, secret = self.provision()
+        response = self.client.get('/admin/instances/installation/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, secret)
+
+    def test_nor_does_the_change_form(self):
+        installation, secret = self.provision()
+        response = self.client.get(
+            f'/admin/instances/installation/{installation.pk}/change/',
+        )
+        self.assertNotContains(response, secret)

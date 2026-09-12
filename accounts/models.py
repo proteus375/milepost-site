@@ -67,7 +67,10 @@ change on: a mark is a record of what happened, not a figure recomputed from
 whatever the rules say today.
 """
 
+import base64
+import hashlib
 import re
+import secrets
 import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -498,3 +501,113 @@ class OrganisationMembership(models.Model):
 
     def __str__(self):
         return f'{self.account.handle} in {self.organisation.slug}'
+
+
+#: How long an authorization code is good for. Deliberately short: it is a
+#: one-time value handed to a browser to carry across a redirect, and the only
+#: thing it has to survive is that redirect. RFC 6749 recommends a maximum of
+#: ten minutes and says a code SHOULD be single-use; this is both, and one
+#: minute would probably also work.
+AUTHORIZATION_CODE_SECONDS = 300
+
+
+class AuthorizationCode(models.Model):
+    """§C.1's layer 2, in the five minutes between consent and collection.
+
+    THE MARKETPLACE IS THE IDENTITY PROVIDER AND AN INSTALLATION IS THE CLIENT.
+    §C.1 settles that, and settles why it is OAuth rather than a shared account
+    created at signup: a shared account would force every instance to be online
+    to onboard *anyone*, which is the wrong dependency direction for a product
+    whose whole claim is that it works alone.
+
+    WHAT IS EXCHANGED FOR IS A SUBJECT, NOT AN ACCESS TOKEN
+    --------------------------------------------------------
+    This is the part that will look wrong to anybody who has implemented OAuth
+    before, so it is the part worth explaining.
+
+    The textbook flow ends with the client holding a bearer token it uses to
+    call APIs as the user. Nothing here would accept one. §A's seam means every
+    machine-channel request is authenticated by the *installation* credential
+    and names its subject as a parameter -- so a bearer token would be a
+    credential with nothing to open, and issuing one would mean inventing a
+    second way to authenticate the same channel. Two ways to prove the same
+    thing is how one of them ends up weaker and nobody notices.
+
+    What the instance actually needs is the one fact §C.1 names: "an opaque
+    marketplace subject id" to store against its local user. So the code is
+    exchanged for that, plus the `InstallationLink` that makes it usable.
+
+    PKCE IS NOT OPTIONAL HERE EVEN THOUGH THE CLIENT HAS A SECRET
+    --------------------------------------------------------------
+    An installation holds a signing key, so it *could* authenticate the token
+    exchange and skip the proof key. PKCE is kept because the authorization
+    code travels through a browser the marketplace does not control -- a
+    guardian's own -- and a code intercepted from a redirect is useless without
+    the verifier. The client secret protects against a stolen code being
+    redeemed by a different client; PKCE protects against it being redeemed by
+    the same client's compromised redirect. They are different attacks and this
+    uses both.
+
+    SINGLE USE, AND `redeemed_at` RATHER THAN A DELETE
+    ---------------------------------------------------
+    A code that has been spent is deleted in many implementations, which makes
+    a replayed redemption indistinguishable from an expired one and leaves no
+    trace of either. Here it is marked, so a second attempt on a spent code is
+    a thing that can be seen in the table rather than inferred from an absence.
+    Rows are swept by age, not by use.
+    """
+
+    #: The value that travels in the redirect. Opaque and high-entropy: it is a
+    #: bearer credential for the length of its life, however short that is.
+    code = models.CharField(max_length=64, unique=True, editable=False)
+
+    installation = models.ForeignKey(
+        'instances.Installation', on_delete=models.CASCADE,
+        related_name='authorization_codes',
+    )
+    account = models.ForeignKey(
+        'Account', on_delete=models.CASCADE,
+        related_name='authorization_codes',
+    )
+
+    #: The S256 challenge. The verifier is never stored -- storing it would
+    #: make the database a place the proof key can be read from, which is the
+    #: one thing PKCE exists to avoid.
+    code_challenge = models.CharField(max_length=128)
+
+    #: Recorded because RFC 6749 requires the redemption to present the same
+    #: one, and because an authorization server that does not check it will
+    #: happily send a code somewhere the client never asked for.
+    redirect_uri = models.URLField()
+
+    created_at = models.DateTimeField(default=timezone.now)
+    redeemed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'code for {self.account.handle} on {self.installation}'
+
+    @property
+    def has_expired(self):
+        age = (timezone.now() - self.created_at).total_seconds()
+        return age > AUTHORIZATION_CODE_SECONDS
+
+    @property
+    def is_spendable(self):
+        return self.redeemed_at is None and not self.has_expired
+
+    def verifies(self, code_verifier):
+        """S256 only. `plain` is in the RFC and is not implemented.
+
+        RFC 7636 permits a `plain` method where the challenge *is* the
+        verifier, for clients that cannot compute a SHA-256. Every client here
+        is a Django application, so the only thing supporting `plain` would add
+        is a way to downgrade -- an attacker who can influence the challenge
+        picking the method that requires no secret at all.
+        """
+        expected = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode('ascii')).digest()
+        ).rstrip(b'=').decode('ascii')
+        return secrets.compare_digest(expected, self.code_challenge)

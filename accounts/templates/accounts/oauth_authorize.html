@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Link your Milepost account{% endblock %}
+{% block content %}
+  <h1>Link your Milepost account</h1>
+  <p>
+    <strong>{{ installation.name }}</strong> is asking to link this Milepost
+    account. This is the copy of Milepost your family or co-op uses.
+  </p>
+  <h2>What it will be able to do</h2>
+  <ul>
+    <li>Know which Milepost account you are, by an id that is not your email address.</li>
+    <li>See whether your household&rsquo;s subscription is current, so it can let you download plans other families have shared.</li>
+    <li>Publish plans you choose to publish, in your name.</li>
+  </ul>
+  <h2>What it will not be able to do</h2>
+  <ul>
+    <li>See your email address or your password.</li>
+    <li>See anything about any other family.</li>
+    <li>Act for you anywhere except on this one installation.</li>
+  </ul>
+  <form method="post" action="{% url 'oauth_authorize' %}?{{ params }}">
+    {% csrf_token %}
+    <button class="btn" type="submit" name="decision" value="allow">Link this account</button>
+    <button class="btn btn-ghost" type="submit" name="decision" value="deny">No thanks</button>
+  </form>
+{% endblock %}

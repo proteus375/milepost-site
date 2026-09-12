@@ -11,10 +11,17 @@ change theirs -- see the note there.
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import views
+from . import oauth, views
 
 urlpatterns = [
     path('signup/', views.sign_up, name='sign_up'),
+    # §C.1's consent screen. The human half of the linking flow: a person, a
+    # session and a page. Its partner -- the token exchange -- is a
+    # server-to-server POST and lives on the versioned machine prefix, because
+    # that half is an address an installation in the field constructs. See
+    # `accounts/oauth.py` for why the flow is split across two URL spaces
+    # rather than forced into one.
+    path('oauth/authorize/', oauth.authorize, name='oauth_authorize'),
     path(
         'login/',
         auth_views.LoginView.as_view(

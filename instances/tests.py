@@ -16,6 +16,7 @@ the other is the test that matters then.
 """
 
 import base64
+import hashlib
 import json
 import logging
 import tempfile
@@ -35,10 +36,13 @@ from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.test import TestCase, override_settings
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
+from urllib.parse import parse_qs, urlencode, urlparse
 from django.utils import timezone
 from io import StringIO
 
-from accounts.models import Account, Organisation
+from accounts.models import (
+    AUTHORIZATION_CODE_SECONDS, Account, AuthorizationCode, Organisation,
+)
 from billing.models import Household, HouseholdMembership
 from catalog.models import (
     Acquisition, CONTENT_LICENCE, Listing, Subject, accept_terms,
@@ -1301,3 +1305,282 @@ class ProvisioningThroughTheAdminTests(MachineFixture):
             f'/admin/instances/installation/{installation.pk}/change/',
         )
         self.assertNotContains(response, secret)
+
+
+@override_settings(LICENCE_SIGNING_KEY=SIGNING_KEY)
+class LinkingAnAccountTests(MachineFixture):
+    """§C.1's layer 2, end to end.
+
+    The flow has two legs in two URL spaces and the split is deliberate: a
+    person with a session consents on the human channel, and a server-to-server
+    POST collects on the versioned machine one. Both are tested here because
+    testing either alone proves nothing about the link actually forming.
+    """
+
+    AUTHORIZE = '/oauth/authorize/'
+    TOKEN = '/machine/v1/oauth/token/'
+    REDIRECT = 'https://oak-hill.example/milepost/linked/'
+
+    def setUp(self):
+        super().setUp()
+        self.installation, self.secret = self.provision()
+        self.installation.redirect_uri = self.REDIRECT
+        self.installation.save(update_fields=['redirect_uri'])
+        self.priya = self.person('priya')
+        self.verifier = 'a-verifier-long-enough-to-be-worth-something'
+        self.challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(self.verifier.encode()).digest()
+        ).rstrip(b'=').decode()
+
+    def authorize_url(self, **overrides):
+        params = {
+            'client_id': str(self.installation.identifier),
+            'redirect_uri': self.REDIRECT,
+            'code_challenge': self.challenge,
+            'code_challenge_method': 'S256',
+            'state': 'opaque-to-us',
+        }
+        params.update(overrides)
+        params = {k: v for k, v in params.items() if v is not None}
+        return self.AUTHORIZE + '?' + urlencode(params)
+
+    def consent(self, decision='allow', **overrides):
+        self.client.force_login(self.priya)
+        return self.client.post(self.authorize_url(**overrides),
+                                {'decision': decision})
+
+    def code_from(self, response):
+        return parse_qs(urlparse(response.url).query)['code'][0]
+
+    def exchange(self, code, verifier=None, redirect_uri=None,
+                 installation=None, secret=None, grant='authorization_code'):
+        installation = installation or self.installation
+        body = urlencode({
+            'grant_type': grant,
+            'code': code,
+            'code_verifier': self.verifier if verifier is None else verifier,
+            'redirect_uri': self.REDIRECT if redirect_uri is None else redirect_uri,
+        }).encode()
+        timestamp, nonce = int(time.time()), new_nonce()
+        header = (
+            f'Milepost-HMAC installation={installation.identifier}, '
+            f'ts={timestamp}, nonce={nonce}, '
+            f'sig={sign(secret or self.secret, "POST", self.TOKEN, timestamp, nonce, body)}'
+        )
+        return self.client.generic(
+            'POST', self.TOKEN, data=body,
+            content_type='application/x-www-form-urlencoded',
+            HTTP_AUTHORIZATION=header,
+        )
+
+    # --- the happy path ------------------------------------------------
+    def test_consenting_sends_a_code_back_to_the_instance(self):
+        response = self.consent()
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(self.REDIRECT))
+        self.assertIn('code=', response.url)
+
+    def test_and_the_state_comes_back_untouched(self):
+        """The client's own value, which is how it ties the redirect to the
+        request it started. Losing it is how a client becomes unable to tell
+        its own flow from somebody else's."""
+        query = parse_qs(urlparse(self.consent().url).query)
+        self.assertEqual(query['state'], ['opaque-to-us'])
+
+    def test_the_code_exchanges_for_a_subject(self):
+        response = self.exchange(self.code_from(self.consent()))
+        body = json.loads(response.content)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body['subject'], str(self.priya.subject))
+        self.assertEqual(body['handle'], 'priya')
+
+    def test_and_no_access_token(self):
+        """Not an oversight. Every machine-channel request is authenticated by
+        the installation credential and names its subject, so a bearer token
+        would be a credential with nothing to open -- and issuing one would
+        mean two ways to authenticate one channel."""
+        body = json.loads(self.exchange(self.code_from(self.consent())).content)
+        self.assertNotIn('access_token', body)
+
+    def test_no_email_address_crosses(self):
+        """§B.3's rule about what this channel carries is not suspended
+        because a person consented to linking. A handle is public by
+        construction; an email address is a credential."""
+        response = self.exchange(self.code_from(self.consent()))
+        self.assertNotIn(b'priya@example.com', response.content)
+
+    def test_the_link_is_what_the_whole_flow_was_for(self):
+        self.assertFalse(
+            InstallationLink.objects.filter(account=self.priya).exists(),
+        )
+        self.exchange(self.code_from(self.consent()))
+        self.assertTrue(
+            InstallationLink.objects.filter(
+                installation=self.installation, account=self.priya,
+            ).exists(),
+        )
+
+    def test_and_the_licence_then_carries_them(self):
+        """End to end: the point of linking is that the instance can now be
+        told this household is paid up."""
+        self.paid_household(self.priya, name='The Priyas')
+        self.exchange(self.code_from(self.consent()))
+
+        payload = json.loads(base64.b64decode(json.loads(
+            self.call(self.secret, self.installation).content)['payload']))
+        self.assertEqual(
+            [e['subject'] for e in payload['entitlements']],
+            [str(self.priya.subject)],
+        )
+
+    # --- the redirect, which is the part that must not be got wrong ----
+    def test_an_unknown_client_is_shown_an_error_not_redirected(self):
+        """RFC 6749 §4.1.2.1. Until the client and its redirect are known
+        good there is nowhere safe to send an error -- redirecting to an
+        unverified address is an open redirect with a credential attached."""
+        response = self.consent(client_id='11111111-1111-1111-1111-111111111111')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(AuthorizationCode.objects.count(), 0)
+
+    def test_a_redirect_the_installation_did_not_register_is_refused(self):
+        response = self.consent(redirect_uri='https://attacker.example/collect/')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(AuthorizationCode.objects.count(), 0)
+
+    def test_and_a_prefix_of_it_is_not_good_enough(self):
+        """Exact comparison, because a prefix match is how
+        `https://real.example/` comes to match
+        `https://real.example.attacker.dev/`."""
+        response = self.consent(
+            redirect_uri=self.REDIRECT.rstrip('/') + '.attacker.dev/',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_an_installation_with_no_registered_redirect_cannot_link(self):
+        """Blank is the default for anything provisioned before the field
+        existed, and guessing an address would be inventing the allowlist."""
+        bare, _ = self.provision(name='No address')
+        self.client.force_login(self.priya)
+        response = self.client.post(
+            self.authorize_url(client_id=str(bare.identifier)),
+            {'decision': 'allow'},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_deactivated_installation_cannot_link(self):
+        self.installation.is_active = False
+        self.installation.save(update_fields=['is_active'])
+        self.assertEqual(self.consent().status_code, 400)
+
+    # --- consent is a real question ------------------------------------
+    def test_a_signed_out_guardian_is_asked_to_sign_in(self):
+        response = self.client.get(self.authorize_url())
+        self.assertIn('/login/', response.url)
+
+    def test_the_consent_page_names_the_installation(self):
+        self.client.force_login(self.priya)
+        response = self.client.get(self.authorize_url())
+        self.assertContains(response, 'Oak Hill')
+
+    def test_declining_says_so_rather_than_timing_out(self):
+        response = self.consent(decision='deny')
+        query = parse_qs(urlparse(response.url).query)
+
+        self.assertEqual(query['error'], ['access_denied'])
+        self.assertEqual(AuthorizationCode.objects.count(), 0)
+
+    def test_a_get_issues_nothing(self):
+        """The page that asks must not be the act of answering. A GET that
+        grants is a link somebody can be sent."""
+        self.client.force_login(self.priya)
+        self.client.get(self.authorize_url())
+        self.assertEqual(AuthorizationCode.objects.count(), 0)
+
+    # --- PKCE ----------------------------------------------------------
+    def test_the_wrong_verifier_is_refused(self):
+        response = self.exchange(self.code_from(self.consent()),
+                                 verifier='not-the-one')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(InstallationLink.objects.exists())
+
+    def test_a_missing_verifier_is_refused(self):
+        self.assertEqual(
+            self.exchange(self.code_from(self.consent()), verifier='').status_code,
+            400,
+        )
+
+    def test_plain_challenges_are_not_accepted(self):
+        """RFC 7636 permits `plain`, where the challenge IS the verifier.
+        Every client here can compute a SHA-256, so supporting it would add
+        only a downgrade path."""
+        response = self.consent(code_challenge_method='plain',
+                                code_challenge=self.verifier)
+        query = parse_qs(urlparse(response.url).query)
+        self.assertEqual(query['error'], ['invalid_request'])
+
+    # --- the code is a bearer credential for five minutes ---------------
+    def test_a_code_is_single_use(self):
+        code = self.code_from(self.consent())
+        self.assertEqual(self.exchange(code).status_code, 200)
+        self.assertEqual(self.exchange(code).status_code, 400)
+
+    def test_an_expired_code_is_refused(self):
+        self.consent()
+        stale = AuthorizationCode.objects.get()
+        stale.created_at = timezone.now() - timedelta(
+            seconds=AUTHORIZATION_CODE_SECONDS + 60,
+        )
+        stale.save(update_fields=['created_at'])
+
+        self.assertEqual(self.exchange(stale.code).status_code, 400)
+
+    def test_another_installation_cannot_redeem_it(self):
+        """The code names its client, and this is why. Without the check an
+        installation could spend a code issued for a different one."""
+        other, other_secret = self.provision(name='Somebody else')
+        code = self.code_from(self.consent())
+
+        response = self.exchange(code, installation=other, secret=other_secret)
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(InstallationLink.objects.exists())
+
+    def test_a_different_redirect_at_redemption_is_refused(self):
+        response = self.exchange(self.code_from(self.consent()),
+                                 redirect_uri='https://oak-hill.example/elsewhere/')
+        self.assertEqual(response.status_code, 400)
+
+    def test_every_refusal_says_the_same_thing(self):
+        """A client cannot act on the difference between an expired code, a
+        spent one and a wrong verifier -- and the differences are what an
+        attacker probing with a stolen code would want."""
+        spent = self.code_from(self.consent())
+        self.exchange(spent)
+        bodies = {
+            self.exchange(spent).content,
+            self.exchange('never-issued').content,
+            self.exchange(self.code_from(self.consent()),
+                          verifier='wrong').content,
+        }
+        self.assertEqual(len(bodies), 1)
+
+    def test_the_token_endpoint_needs_the_installation_signature(self):
+        """It is machine traffic on the versioned prefix, so it is
+        authenticated like everything else there. A code and a verifier alone
+        are not enough."""
+        code = self.code_from(self.consent())
+        response = self.client.post(self.TOKEN, {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'code_verifier': self.verifier,
+            'redirect_uri': self.REDIRECT,
+        })
+        self.assertEqual(response.status_code, 401)
+
+    def test_an_unsupported_grant_type_is_named_as_such(self):
+        """Unlike the refusals above, this one a client CAN act on -- it is a
+        bug in the client, not a probe."""
+        response = self.exchange(self.code_from(self.consent()),
+                                 grant='password')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b'unsupported_grant_type', response.content)

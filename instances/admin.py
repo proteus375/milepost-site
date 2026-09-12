@@ -50,14 +50,14 @@ class InstallationLinkInline(admin.TabularInline):
 
 @admin.register(Installation)
 class InstallationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'identifier', 'organisation', 'is_active',
-                    'last_seen_at']
+    list_display = ['name', 'identifier', 'organisation', 'can_link',
+                    'is_active', 'last_seen_at']
     list_filter = ['is_active']
     search_fields = ['name', 'identifier']
     autocomplete_fields = ['organisation']
     readonly_fields = ['identifier', 'created_at', 'last_seen_at']
-    fields = ['name', 'organisation', 'is_active', 'identifier', 'created_at',
-              'last_seen_at']
+    fields = ['name', 'organisation', 'redirect_uri', 'is_active',
+              'identifier', 'created_at', 'last_seen_at']
     inlines = [InstallationLinkInline]
     actions = ['rotate_signing_key']
 
@@ -85,6 +85,13 @@ class InstallationAdmin(admin.ModelAdmin):
         return self._credential_page(
             request, [(obj, secret)], 'Installation provisioned',
         )
+
+    @admin.display(boolean=True, description='Can link accounts')
+    def can_link(self, installation):
+        """On the list because a blank redirect URI is invisible until a
+        guardian tries to link and is refused, and the person who sees that
+        refusal is not the person who can fix it."""
+        return bool(installation.redirect_uri)
 
     @admin.action(description='Rotate the signing key')
     def rotate_signing_key(self, request, queryset):

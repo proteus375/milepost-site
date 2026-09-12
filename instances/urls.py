@@ -14,9 +14,22 @@ takes a long afternoon to see.
 
 from django.urls import path
 
+from accounts import oauth
+
 from . import views
 
 urlpatterns = [
+    # §C.1's token exchange. The code lives in `accounts` because §A gives that
+    # app the OAuth provider; the URL lives here because §A gives this prefix
+    # the traffic that comes from deployments you cannot redeploy, and a
+    # server-to-server POST from an instance in the field is exactly that.
+    #
+    # Wrapped in `machine_endpoint` here rather than decorated at its
+    # definition, so that `accounts` needs no import from `instances` -- the
+    # dependency runs one way in the import graph even though the flow runs
+    # both ways.
+    path('oauth/token/', views.machine_endpoint(oauth.token),
+         name='machine_oauth_token'),
     path('licence/', views.licence, name='machine_licence'),
     # GET lists, POST pushes. See `views.plans`.
     path('plans/', views.plans, name='machine_plans'),

@@ -58,12 +58,13 @@ So an operator creates the row in the Django admin:
 1. **Installations → Add.** Give it a name an operator will recognise. Set
    **Organisation** only for a co-op installation: that is the *only*
    organisation it will ever be allowed to publish as.
-2. The next page shows the **installation id** and the **signing key**, once.
+2. Set the **redirect URI** — exactly where that deployment receives the OAuth
+   redirect, character for character. See below; a blank one means guardians
+   cannot link their accounts, and the changelist has a **Can link accounts**
+   column so that is visible before somebody hits it.
+3. The next page shows the **installation id** and the **signing key**, once.
    Both go into that deployment's environment. Nothing stores the key anywhere
    readable and no screen will show it again.
-3. **Links** — which marketplace accounts this installation may act for. Until
-   OAuth exists these are created by hand here, and an installation can do
-   nothing on behalf of somebody who has not been linked.
 
 If a key is lost, use the **Rotate the signing key** action. The old one stops
 working immediately, with no overlap window, because the reason to rotate is
@@ -85,13 +86,45 @@ does not prove a deployment has it.
 
 ---
 
-## What an operator still cannot do
+---
 
-**OAuth does not exist.** §C.1's layer 2 is what will eventually let a guardian
-link their own account from inside their instance. Until then every
-`InstallationLink` is an operator action, which is the right failure direction —
-nothing reaches this channel that nobody chose to put there — and is not a
-shipping state.
+## Linking a guardian's account
+
+§C.1's layer 2. A guardian follows a link from inside their own instance,
+authenticates here, is shown what the installation will be able to do, and is
+sent back carrying a code their instance exchanges for an opaque subject id.
+That id — never an email address — is what the instance stores against its
+local user, and the exchange also creates the `InstallationLink` that lets the
+installation act for them.
+
+The flow has two legs in two URL spaces, and that is deliberate rather than
+untidy:
+
+| | | |
+| --- | --- | --- |
+| `/oauth/authorize/` | A person in a browser, with a session and a consent page | Human channel |
+| `/machine/v1/oauth/token/` | A server-to-server POST, signed with the installation key | Machine channel, versioned |
+
+**The redirect URI is an allowlist of exactly one**, compared exactly rather
+than by prefix — a prefix match is how `https://real.example/` comes to match
+`https://real.example.attacker.dev/`. An authorization server that honours
+whatever redirect a request names is an open redirect with a credential
+attached, which is the classic way authorization codes are stolen. So it is
+recorded at provisioning, by the operator who knows where the deployment is,
+and nothing a request says can change it.
+
+If a guardian reports that linking fails with "that installation did not ask to
+be sent anywhere this site recognises", the redirect URI is wrong or blank.
+That message is deliberately unhelpful about *which*, because it is shown to
+whoever followed the link and they are not the person who can fix it.
+
+Codes are single-use and good for five minutes. Rows accumulate and are swept
+by age, not by use — a spent code is marked rather than deleted, so a replayed
+redemption is visible in the table rather than inferred from an absence.
+
+---
+
+## What an operator still cannot do
 
 **Nothing here publishes anything.** A pushed pack lands `IN_REVIEW` and waits
 for moderation. `Listing.publish` is the only thing that makes a listing

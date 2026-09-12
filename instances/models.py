@@ -116,6 +116,27 @@ class Installation(models.Model):
                   'organisation it may publish as.',
     )
 
+    # WHERE THIS DEPLOYMENT LIVES, AND IT IS AN ALLOWLIST OF EXACTLY ONE.
+    #
+    # §C.1's OAuth flow sends a guardian back to their own instance carrying an
+    # authorization code. An authorization server that accepts whatever
+    # redirect a request asks for is an open redirect with a credential
+    # attached -- the classic way authorization codes are stolen. So the URI is
+    # recorded here at provisioning, by the operator who knows where the
+    # deployment actually is, and a request naming anything else is refused.
+    #
+    # Blank means this installation cannot do the OAuth flow at all, which is
+    # the right default: an installation provisioned before this field existed
+    # has no known address, and guessing one would be inventing the allowlist
+    # this field exists to be.
+    redirect_uri = models.URLField(
+        blank=True,
+        help_text=(
+            'Where this deployment receives the OAuth redirect, exactly. '
+            'Blank means it cannot link accounts.'
+        ),
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
     #: Written on every authenticated request. The cheapest possible answer to

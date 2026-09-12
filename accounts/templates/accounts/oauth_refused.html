@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Something is wrong with that link{% endblock %}
+{% block content %}
+  <h1>Something is wrong with that link</h1>
+  <p>{{ reason }}</p>
+  {% comment %}
+  Shown rather than redirected, and that is the security-relevant part. Until
+  the installation and its redirect address have both checked out there is
+  nowhere safe to send an error -- redirecting to an unverified address is the
+  open redirect this endpoint would otherwise be, with an authorization code
+  attached.
+  {% endcomment %}
+  <p>
+    Nothing has been shared, and no account has been linked. If you reached
+    this from your own copy of Milepost, whoever runs it will need to check how
+    it is configured.
+  </p>
+  <p><a href="{% url 'home' %}">Back to Milepost</a></p>
+{% endblock %}

@@ -1681,3 +1681,117 @@ class MachineVectorTests(SimpleTestCase):
             cases['a plain GET']['signature'],
             cases['a lowercase method is signed uppercase']['signature'],
         )
+
+
+# ---------------------------------------------------------------------------
+# Two things only a real request found
+# ---------------------------------------------------------------------------
+
+class MalformedIdentifierTests(TestCase):
+    """A header naming something that is not a UUID is refused, not a 500.
+
+    FOUND BY PROVISIONING AN INSTALLATION AND USING IT, not by a test. The
+    first client request carried `<uuid>` -- angle brackets and all, copied
+    with the placeholder -- and `UUIDField` raised ValidationError from inside
+    the queryset. Nothing in `authenticate`'s except clause caught it.
+
+    Every test in this file constructs a well-formed identifier, because every
+    test knows what an identifier looks like. A person pasting one does not.
+
+    IT IS A SECURITY PROPERTY AND NOT ONLY A CRASH. `authenticate` answers
+    every refusal identically so that nobody can enumerate which installation
+    ids exist. A 500 is a third answer, available with no credential, that
+    distinguishes "malformed" from "unknown".
+    """
+
+    def get(self, identifier):
+        return self.client.get(
+            '/machine/v1/licence/',
+            HTTP_AUTHORIZATION=(
+                f'{auth.SCHEME} installation={identifier}, '
+                f'ts={int(time.time())}, nonce={new_nonce()}, sig=abc'
+            ),
+        )
+
+    def test_angle_brackets_around_a_real_uuid(self):
+        """The exact value that produced the 500."""
+        response = self.get('<311cc47f-a367-4f6b-88d1-e44bffef5232>')
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_not_a_uuid_at_all(self):
+        self.assertEqual(self.get('hello').status_code, 401)
+
+    def test_empty_is_refused_before_it_reaches_the_database(self):
+        """`_parse` rejects a field with no value, so this never gets as far as
+        the lookup -- asserted so that the two refusals stay one answer."""
+        self.assertEqual(self.get('').status_code, 401)
+
+    def test_a_well_formed_but_unknown_uuid_gets_the_same_answer(self):
+        """The point of the whole exercise: malformed and unknown must be
+        indistinguishable from outside."""
+        malformed = self.get('hello')
+        unknown = self.get('9f1c0b2a-0000-4000-8000-000000000009')
+
+        self.assertEqual(malformed.status_code, unknown.status_code)
+        self.assertEqual(malformed.content, unknown.content)
+
+
+class TheAddFormShowsNoIdentifierTests(TestCase):
+    """The add page must not display a UUID that will not be saved.
+
+    `identifier` is `editable=False` with `default=uuid.uuid4`, so rendering it
+    readonly on an ADD form makes Django build a throwaway instance and
+    evaluate the default -- then evaluate it again, differently, on save. The
+    page showed one id and stored another, under the label "The id this
+    installation authenticates as".
+
+    Provisioning is the one moment an operator reads that value and writes it
+    down; there is no registration endpoint, so this page is how a deployment
+    learns who it is. An operator who copied from the form got an id that
+    authenticates as nobody, and found out later as a 401 the marketplace
+    deliberately will not explain.
+
+    No test could have caught it, because every test creates installations in
+    the ORM where a form is not involved. What caught it was provisioning one
+    and using it.
+    """
+
+    def setUp(self):
+        self.operator = Account.objects.create_superuser(
+            email='operator@example.test', handle='operator',
+            password='a-long-enough-passphrase',
+        )
+        self.client.force_login(self.operator)
+
+    def test_the_add_page_does_not_render_an_identifier(self):
+        response = self.client.get(
+            '/admin/instances/installation/add/',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'The id this installation authenticates as')
+
+    def test_the_change_page_still_does(self):
+        """The field is genuinely useful once it is real -- this is about a row
+        that does not exist yet, not about hiding the identifier."""
+        installation = Installation.objects.create(name='Somewhere')
+
+        response = self.client.get(
+            f'/admin/instances/installation/{installation.pk}/change/',
+        )
+
+        self.assertContains(response, str(installation.identifier))
+
+    def test_saving_stores_the_identifier_the_credential_page_shows(self):
+        """The property that was actually broken, asserted end to end rather
+        than by checking which fields render."""
+        response = self.client.post(
+            '/admin/instances/installation/add/',
+            {'name': 'Dev instance', 'is_active': 'on',
+             'redirect_uri': '', 'links-TOTAL_FORMS': '0',
+             'links-INITIAL_FORMS': '0'},
+        )
+
+        installation = Installation.objects.get(name='Dev instance')
+        self.assertContains(response, str(installation.identifier))

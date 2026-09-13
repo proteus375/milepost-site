@@ -61,6 +61,49 @@ class InstallationAdmin(admin.ModelAdmin):
     inlines = [InstallationLinkInline]
     actions = ['rotate_signing_key']
 
+    #: Facts about a row that does not exist yet, and therefore has none.
+    #: See `get_fields`.
+    NOT_YET_TRUE = ('identifier', 'created_at', 'last_seen_at')
+
+    def get_fields(self, request, obj=None):
+        """Hide the generated fields while adding, because they are not real.
+
+        THIS FIXES A DEFECT THAT COST AN AFTERNOON, AND THE MECHANISM IS WORTH
+        UNDERSTANDING BECAUSE IT LOOKS LIKE IT SHOULD WORK.
+
+        `identifier` is `editable=False` with `default=uuid.uuid4`, so it is
+        readonly here. To render a readonly field on an ADD form, Django builds
+        a throwaway model instance -- which evaluates that default. It then
+        builds a DIFFERENT instance when the form is saved, evaluating it
+        again. The two are not the same UUID.
+
+        So the add page displayed an identifier, under the label "The id this
+        installation authenticates as", and stored a different one. `created_at`
+        did the same with `timezone.now()`.
+
+        WHY THAT IS WORSE THAN AN ORDINARY COSMETIC BUG. Provisioning is the
+        one moment an operator reads the identifier and writes it down: there
+        is no registration endpoint, so this page IS how a deployment learns
+        who it is. An operator who copied from this form got a value that
+        authenticates as nobody, and the failure surfaces later, somewhere
+        else, as a 401 with no explanation -- `authenticate` answers every
+        refusal identically on purpose, so the marketplace cannot tell them
+        the id is simply not one that exists.
+
+        Found by provisioning an installation and using it, which is the only
+        way it could have been found: every test constructs its installations
+        in the ORM, where the value rendered on a form has no opportunity to
+        differ from the value saved.
+
+        The credential page after saving was always correct -- it renders a
+        saved object. The fix is therefore not to change what is shown after,
+        but to stop showing a number before there is one.
+        """
+        fields = super().get_fields(request, obj)
+        if obj is None:
+            return [f for f in fields if f not in self.NOT_YET_TRUE]
+        return fields
+
     def save_model(self, request, obj, form, change):
         """A new installation gets a secret. `response_add` shows it.
 

@@ -89,6 +89,7 @@ import secrets
 import time
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 
 from .models import Installation
 
@@ -199,7 +200,28 @@ def authenticate(request):
         installation = Installation.objects.select_related(
             'organisation',
         ).get(identifier=fields['installation'])
-    except (Installation.DoesNotExist, ValueError, TypeError):
+    except (Installation.DoesNotExist, ValidationError, ValueError, TypeError):
+        # ValidationError IS THE ONE THAT WAS MISSING, and it is the only one
+        # of the four that a caller can trigger from outside.
+        #
+        # `identifier` is a UUIDField, and Django raises ValidationError -- not
+        # ValueError -- for a string that is not a UUID. So any unauthenticated
+        # request whose `installation=` is malformed produced a 500 rather than
+        # a refusal.
+        #
+        # THIS IS THE SAME BUG, IN THE SAME PROJECT, FOR THE SECOND TIME. The
+        # first was `?subject=hello` reaching `views.pack`, fixed there when it
+        # was found. The lookup here is identical and did not get the fix,
+        # because nothing connected the two -- one was a query parameter and
+        # one is a header field, so neither search nor memory joined them.
+        #
+        # It is not merely untidy. `authenticate`'s refusals are uniform on
+        # purpose: a machine cannot act on the difference between "no such
+        # installation" and "wrong secret", and telling them apart is how
+        # somebody enumerates which ids exist. A 500 is a THIRD answer,
+        # reachable with no credential, that says "your identifier was
+        # malformed" rather than "unknown" -- which is exactly the distinction
+        # the uniform refusal exists to withhold.
         raise Refused('No such installation') from None
 
     if not installation.is_active:

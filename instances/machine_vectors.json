@@ -1,0 +1,151 @@
+{
+  "format": "milepost.machine-vectors/1",
+  "scheme": "Milepost-HMAC",
+  "note": "THE WIRE CONTRACT FOR THE MACHINE CHANNEL, frozen on purpose. Both milepost-site and homeschool-lms assert their signer reproduces every signature here. Regenerating this file is not a maintenance chore -- it is a statement that the wire format changed, which every deployed instance would have to be upgraded to speak. The keys below are invented for this file and open no door anywhere.",
+  "cases": [
+    {
+      "name": "a plain GET",
+      "why": "The licence fetch, which is the first request any client makes.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/licence/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/licence/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "530d7077a7e8e3cc1709d9324a75549eed01679a3891b287c5c2ca14d0fdb4ef"
+    },
+    {
+      "name": "a GET with a query string",
+      "why": "`string_to_sign` takes the path INCLUDING the query. A client reaching for the framework's equivalent of `request.path` signs less than it means to and does it silently, so a vector pins the difference.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/plans/?subject=9f1c0b2a-0000-4000-8000-000000000001",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/plans/?subject=9f1c0b2a-0000-4000-8000-000000000001\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "9bf02a60efbb3999214137c2adb81f9d30dcf74fb62112cc22ba40a450bbef97"
+    },
+    {
+      "name": "the same path with no query is a different signature",
+      "why": "The pair above and below exist together: one vector proves the query is signed, two prove it changes the answer.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/plans/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/plans/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "3ef6e9c33a331bb718ffe69da3762a539d7c00a7dc4bfe95c8f850e5c011050f"
+    },
+    {
+      "name": "a POST carrying a body",
+      "why": "The push path. The body is hashed, never signed directly, so a large upload costs one pass rather than being held twice.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "POST",
+      "path": "/machine/v1/plans/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "eyJmb3JtYXQiOiJtaWxlcG9zdC5wbGFuLzEifQ==",
+      "string_to_sign": "POST\n/machine/v1/plans/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\n74d08dcd6dfac80d479498134c2b8b0faf6d9594edaafddcf3757124d84a7631",
+      "signature": "b12dbf7ce7ba8e713f3678f6334591f02567ad46ce46e1da5152b74160af4792"
+    },
+    {
+      "name": "a POST with an empty body",
+      "why": "`body or b''` means None and b'' hash identically. A client that sends no body must produce the same signature as one that sends an empty one.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "POST",
+      "path": "/machine/v1/plans/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "POST\n/machine/v1/plans/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "42f39b75552db7121cc71679440132cc1cc3a1a9173f739bf39bff888a583732"
+    },
+    {
+      "name": "a body containing bytes that are not text",
+      "why": "A pack is a zip. Anything that decodes the body before hashing it -- or hashes a string rather than bytes -- fails here and nowhere else.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "POST",
+      "path": "/machine/v1/plans/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "UEsDBAD//oAKDQ==",
+      "string_to_sign": "POST\n/machine/v1/plans/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\n62f42779e699ceca245c48dd81a6f0fc5c450687660933224b4a3970c868b52f",
+      "signature": "dd363f9348f703e22009262c67a1782dfa205e29b648e6f5bf9d6fa686d8d66b"
+    },
+    {
+      "name": "a lowercase method is signed uppercase",
+      "why": "`string_to_sign` upper-cases. A client passing its own spelling through would sign something the server never reconstructs.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "get",
+      "path": "/machine/v1/licence/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/licence/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "530d7077a7e8e3cc1709d9324a75549eed01679a3891b287c5c2ca14d0fdb4ef"
+    },
+    {
+      "name": "a path with a percent-encoded segment",
+      "why": "Signed exactly as it appears on the wire. Nothing normalises, unquotes or re-quotes on either side, and a client that tidies the path before signing breaks against a server that does not.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/plans/a%20b/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/plans/a%20b/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "c20b82494318b03ffa0c4aa51fb1b4c9f65554f8d77d5869718a09851c4c8483"
+    },
+    {
+      "name": "a non-ASCII query value",
+      "why": "The string is UTF-8 encoded before the HMAC. A client encoding latin-1, or hashing the str, disagrees only for characters above U+007F.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/plans/?q=f%C3%B6rskola&name=Ru%C3%9F",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/plans/?q=f%C3%B6rskola&name=Ru%C3%9F\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "a4afec6ece69dd4a095c29598d2374d0f50e048ae32178cb27122ee379385977"
+    },
+    {
+      "name": "a different nonce is a different signature",
+      "why": "The nonce is in the signed string, not merely in the header -- which is the fix for two byte-identical pushes in the same second colliding.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/licence/",
+      "timestamp": 1789000000,
+      "nonce": "ffffffffffffffffffffffffffffffff",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/licence/\n1789000000\nffffffffffffffffffffffffffffffff\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "436faa062ea9773c8375914af613d76a64e81c11131004cab4cfdd0b058da896"
+    },
+    {
+      "name": "a different timestamp is a different signature",
+      "why": "So a captured signature cannot be replayed with a fresh clock reading.",
+      "key": "vector-key-not-a-real-credential-0000000000",
+      "method": "GET",
+      "path": "/machine/v1/licence/",
+      "timestamp": 1789000001,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/licence/\n1789000001\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "3830bba0e751cd06e292c71115f960652c3d5388442410e91cce5485bcc8fa29"
+    },
+    {
+      "name": "a different key is a different signature",
+      "why": "Trivially true and worth a vector: it is the one case where a client that hard-codes a key by mistake still passes every other check.",
+      "key": "vector-key-the-second-not-a-real-credential",
+      "method": "GET",
+      "path": "/machine/v1/licence/",
+      "timestamp": 1789000000,
+      "nonce": "a3f21c9e5b7d4408e1f6c2a09d83b514",
+      "body_base64": "",
+      "string_to_sign": "GET\n/machine/v1/licence/\n1789000000\na3f21c9e5b7d4408e1f6c2a09d83b514\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "43f7cde75173fbbe50d29cf80ed0be89caa240fa4dd59645ec99aa0776ec1e55"
+    }
+  ]
+}

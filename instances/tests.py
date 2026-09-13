@@ -10,9 +10,20 @@ The signature helper is `auth.sign`, the same function the verifier uses. That
 is a deliberate weakness and worth naming: a test that signs with the
 implementation cannot catch a signing rule that is wrong in both places. What
 it does catch is every way the verifier can be circumvented, which is the part
-an attacker has access to. The cross-implementation check is the day
-`homeschool-lms` grows a client, and a payload signed by one and verified by
-the other is the test that matters then.
+an attacker has access to.
+
+THAT GAP NOW HAS AN ANSWER, and it arrived before the client did.
+`MachineVectorTests` at the foot of this file asserts `auth.sign` reproduces
+every signature in `instances/machine_vectors.json` -- a frozen file whose
+first version was computed from a separate reading of `auth.py`'s prose rather
+than by running `auth.sign`. So the check is against an independent
+implementation, expressed as data instead of as a second copy of the code.
+
+`homeschool-lms` asserts its own signer against the same file. Neither side can
+drift without a test failing on the side that moved, and nothing has to be
+installed, versioned or kept in step except a JSON file that is not supposed to
+change. See the management command for why regenerating it is a breaking change
+rather than a chore.
 """
 
 import base64
@@ -34,7 +45,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from urllib.parse import parse_qs, urlencode, urlparse
 from django.utils import timezone
@@ -50,6 +61,7 @@ from catalog.models import (
 from catalog.packs import attach
 from catalog.tests import a_pack
 
+from . import auth
 from .auth import CLOCK_SKEW, new_nonce, sign
 from .licence import LICENCE_FORMAT, NoSigningKey, build, issue
 from .views import MAX_LIMIT
@@ -1584,3 +1596,88 @@ class LinkingAnAccountTests(MachineFixture):
                                  grant='password')
         self.assertEqual(response.status_code, 400)
         self.assertIn(b'unsupported_grant_type', response.content)
+
+
+# ---------------------------------------------------------------------------
+# The wire contract
+# ---------------------------------------------------------------------------
+
+class MachineVectorTests(SimpleTestCase):
+    """`auth.sign` still produces what the committed vectors say it must.
+
+    THE ONE TEST IN THIS FILE THAT IS NOT ABOUT AN ATTACKER. Everything above
+    asks whether the verifier can be got around. This asks whether the two ends
+    of the channel still agree about what a signature IS -- a question no
+    amount of testing the verifier against its own signer can reach.
+
+    NO DATABASE, so it runs in milliseconds and there is no excuse to skip it.
+    `SimpleTestCase` rather than `TestCase` states that.
+
+    WHEN ONE OF THESE FAILS, the answer is essentially never to regenerate the
+    file. It is the wire contract for instances that cannot be redeployed on
+    our schedule, and a vector failing means the signer moved under it. The
+    management command refuses without a flag for exactly this reason.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        path = Path(__file__).resolve().parent / 'machine_vectors.json'
+        cls.document = json.loads(path.read_text(encoding='utf-8'))
+
+    def test_the_file_was_actually_found_and_has_cases(self):
+        """A guard on the guard. A renamed or emptied file would make every
+        subTest below pass while checking nothing -- the same failure
+        `tests_tier_crosscheck` guards against in the other project."""
+        self.assertGreaterEqual(len(self.document['cases']), 10)
+        self.assertEqual(self.document['scheme'], auth.SCHEME)
+
+    def test_every_signature_still_matches(self):
+        for case in self.document['cases']:
+            with self.subTest(case=case['name']):
+                body = base64.b64decode(case['body_base64'])
+                self.assertEqual(
+                    auth.sign(
+                        case['key'], case['method'], case['path'],
+                        case['timestamp'], case['nonce'], body,
+                    ),
+                    case['signature'],
+                    case['why'],
+                )
+
+    def test_every_canonical_string_still_matches(self):
+        """Separately from the signature, so a failure says WHERE the
+        disagreement is. A wrong canonical string and a wrong HMAC both show up
+        as a wrong signature, and they are fixed in different places."""
+        for case in self.document['cases']:
+            with self.subTest(case=case['name']):
+                body = base64.b64decode(case['body_base64'])
+                self.assertEqual(
+                    auth.string_to_sign(
+                        case['method'], case['path'], case['timestamp'],
+                        case['nonce'], body,
+                    ),
+                    case['string_to_sign'],
+                    case['why'],
+                )
+
+    def test_the_query_string_is_part_of_what_is_signed(self):
+        """Asserted from the vectors rather than restated, so this cannot
+        quietly stop being true while the pair still sits in the file: the two
+        cases differ only by a query string and must not share a signature."""
+        cases = {case['name']: case for case in self.document['cases']}
+        with_query = cases['a GET with a query string']
+        without = cases['the same path with no query is a different signature']
+
+        self.assertNotEqual(with_query['signature'], without['signature'])
+
+    def test_the_method_is_upper_cased_before_signing(self):
+        """The one pair in the file that MUST collide. `get` and `GET` are the
+        same request, and a client passing its own spelling through would sign
+        something the server never reconstructs."""
+        cases = {case['name']: case for case in self.document['cases']}
+
+        self.assertEqual(
+            cases['a plain GET']['signature'],
+            cases['a lowercase method is signed uppercase']['signature'],
+        )

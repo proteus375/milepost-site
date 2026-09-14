@@ -8,9 +8,11 @@ credential, and keeping it off here is why the model has a separate `handle`
 at all. Nothing else about them either, because nothing else has been
 published yet.
 
-Reputation is here now -- §H.2's derived facts, which are queries rather than
-columns. Badges are not: they are a separate model and a later step, and an
-empty "Badges" heading would promise a feature that does not exist.
+Reputation is here now, both halves of it: §H.2's derived facts, which are
+queries rather than columns, and §H.3's awards, which are rows. They are shown
+as two lists rather than merged, because they are different kinds of claim --
+a fact is checkable against rows anybody can see, and a badge is something
+Milepost decided and has to be able to explain.
 
 NOTHING RENDERS WHEN THERE IS NOTHING. A person who has published nothing gets
 the page they had before rather than a row of zeroes, because a zero here is
@@ -62,6 +64,27 @@ families" about somebody who never published reads as a judgement.
       {% if facts.contributed and facts.contributed != facts.published %}
         <li>{{ facts.contributed }} contributed to others&rsquo; plans</li>
       {% endif %}
+    </ul>
+  {% endif %}
+
+  {% comment %}
+  §H.3's badges. Each one carries its reason, and that is not decoration: the
+  reason is what separates this from a points total, and a badge rendered
+  without it would be a number nobody can explain sitting on somebody's page.
+
+  NO REVOKED BADGES, decided by `awards_for` rather than here. A template
+  filtering for itself is how a withdrawn badge survives on the one page
+  somebody forgot to update.
+  {% endcomment %}
+  {% if awards %}
+    <h2 class="award-list-heading">Badges</h2>
+    <ul class="award-list">
+      {% for award in awards %}
+        <li class="award">
+          <strong>{{ award.get_kind_display }}</strong>
+          <span class="award-reason">{{ award.reason }}</span>
+        </li>
+      {% endfor %}
     </ul>
   {% endif %}
 

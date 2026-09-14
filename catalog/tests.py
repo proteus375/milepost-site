@@ -20,7 +20,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import Account, Organisation, OrganisationMembership
+from accounts.models import (
+    Account, Award, Organisation, OrganisationMembership, grant,
+)
 from billing.models import Household, HouseholdMembership
 from catalog import reputation
 from catalog.packs import attach
@@ -1641,3 +1643,46 @@ class TheListingPageShowsTheOwnersStandingTests(ReputationFixture):
         response = self.client.get(reverse('listing', args=[draft.slug]))
 
         self.assertNotContains(response, 'has published')
+
+
+class BadgesOnTheListingPageTests(ReputationFixture):
+    """§H.5: `WIDELY_USED`, `WELL_REVIEWED` and `SUSTAINED` are facts about a
+    plan and hang off a listing; `PUBLISHED` is about the person who did the
+    work. The two surfaces ask different questions and get different answers."""
+
+    def test_a_badge_for_this_plan_is_shown_with_its_reason(self):
+        grant(self.ada, Award.Kind.SUSTAINED, listing=self.plan_of_ada,
+              reason='Still live a year after publication.')
+
+        response = self.client.get(reverse('listing', args=['botany']))
+
+        self.assertContains(response, 'Still going a year on')
+        self.assertContains(response, 'Still live a year after publication.')
+
+    def test_the_owners_own_badge_is_not_shown_here(self):
+        """It would say on a page about this plan what the standing row above
+        it already says about the person, and better."""
+        grant(self.ada, Award.Kind.PUBLISHED, reason='Published their first plan.')
+
+        response = self.client.get(reverse('listing', args=['botany']))
+
+        self.assertNotContains(response, 'Published their first plan.')
+
+    def test_a_revoked_badge_is_not_shown(self):
+        award = grant(self.ada, Award.Kind.SUSTAINED, listing=self.plan_of_ada,
+                      reason='Still live a year on.')
+        award.revoke('Plan turned out to be plagiarised.')
+
+        response = self.client.get(reverse('listing', args=['botany']))
+
+        self.assertNotContains(response, 'Still live a year on.')
+
+    def test_a_draft_shows_none_of_it_to_its_own_editor(self):
+        self.client.force_login(self.ada)
+        draft = self.plan(slug='draft', owner_account=self.ada)
+        grant(self.ada, Award.Kind.SUSTAINED, listing=draft,
+              reason='Should not be on a draft.')
+
+        response = self.client.get(reverse('listing', args=[draft.slug]))
+
+        self.assertNotContains(response, 'Should not be on a draft.')

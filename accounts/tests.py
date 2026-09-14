@@ -38,12 +38,19 @@ settings.py.
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
 
+# `catalog` imports this app, never the reverse -- except here and in
+# `views.profile`, where a test needs something for a badge to be about. A
+# test module is not part of the dependency graph the rule protects.
+from catalog.models import Listing, Subject
+
 from .forms import ProfileForm, SignUpForm
 from .models import (
-    Account, Organisation, OrganisationMembership, validate_handle,
+    Account, Award, Organisation, OrganisationMembership, awards_for,
+    awards_on, grant, validate_handle,
 )
 
 
@@ -528,3 +535,304 @@ class TheLastOwnerTests(OrganisationFixture):
     def test_removing_somebody_who_is_not_a_member_is_not_an_error(self):
         self.organisation.remove_member(self.make('stranger'))
         self.assertEqual(self.organisation.memberships.count(), 1)
+
+
+class AwardFixture(OrganisationFixture):
+    """A person, a co-op, and a plan for a badge to be about."""
+
+    def setUp(self):
+        super().setUp()
+        self.ada = self.make('ada')
+
+    def plan(self, slug='botany', **extra):
+        fields = {
+            'title': 'A Year of Botany',
+            'slug': slug,
+            'summary': 'Thirty-six weeks of plants, mostly outdoors.',
+            'subject': Subject.SCIENCE,
+            'grade_min': 3,
+            'grade_max': 6,
+            'owner_account': self.ada,
+            'status': Listing.Status.PUBLISHED,
+        }
+        fields.update(extra)
+        return Listing.objects.create(**fields)
+
+
+class AnAwardHasExactlyOneSubjectTests(AwardFixture):
+    """The third model to carry this shape, after `Listing` and
+    `TermsAcceptance`. §H.3: "who owns this work" and "who gets credit for it"
+    have to have the same possible answers, or a co-op earns a badge with
+    nowhere to put it."""
+
+    def test_a_person_can_hold_one(self):
+        award = Award.objects.create(
+            account=self.ada, kind=Award.Kind.FOUNDING, reason='Was here first.',
+        )
+
+        self.assertEqual(award.subject, self.ada)
+
+    def test_an_organisation_can_hold_one(self):
+        """THE TEST THE OWNER SHAPE EXISTS FOR. §C.4's opening bullet warned
+        that a co-op's work could accrue to an individual who takes it
+        elsewhere; a badge the co-op itself holds is the answer."""
+        co_op = self.org()
+
+        award = Award.objects.create(
+            organisation=co_op, kind=Award.Kind.FOUNDING, reason='Was here first.',
+        )
+
+        self.assertEqual(award.subject, co_op)
+
+    def test_both_at_once_is_refused_by_the_database(self):
+        co_op = self.org()
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Award.objects.create(
+                account=self.ada, organisation=co_op,
+                kind=Award.Kind.FOUNDING, reason='Both.',
+            )
+
+    def test_neither_is_refused_by_the_database(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Award.objects.create(kind=Award.Kind.FOUNDING, reason='Nobody.')
+
+
+class AReasonIsNotOptionalTests(AwardFixture):
+    """§H.3 calls this "a constraint rather than a nicety": it is the field
+    that makes the difference between a badge and a points total."""
+
+    def test_a_blank_reason_is_refused_by_the_database(self):
+        """Not merely by `full_clean`. A rule that holds only when somebody
+        remembers to validate is a rule about programmer discipline."""
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Award.objects.create(
+                account=self.ada, kind=Award.Kind.FOUNDING, reason='',
+            )
+
+    def test_grant_refuses_one_too(self):
+        with self.assertRaises(ValidationError):
+            grant(self.ada, Award.Kind.FOUNDING, reason='   ')
+
+
+class OneBadgePerThingItIsAboutTests(AwardFixture):
+    """§H.3's uniqueness, which is four constraints rather than one because
+    the subject is two columns and `listing` is nullable."""
+
+    def test_the_same_overall_badge_cannot_be_granted_twice(self):
+        Award.objects.create(
+            account=self.ada, kind=Award.Kind.PUBLISHED, reason='First plan.',
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Award.objects.create(
+                account=self.ada, kind=Award.Kind.PUBLISHED, reason='Again.',
+            )
+
+    def test_nor_the_same_badge_twice_for_one_plan(self):
+        botany = self.plan()
+        Award.objects.create(
+            account=self.ada, kind=Award.Kind.SUSTAINED, listing=botany,
+            reason='A year on.',
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Award.objects.create(
+                account=self.ada, kind=Award.Kind.SUSTAINED, listing=botany,
+                reason='Still a year on.',
+            )
+
+    def test_but_the_same_badge_for_two_plans_is_two_badges(self):
+        """The reason the constraint names `listing` at all: a publisher with
+        two long-lived plans has earned it twice."""
+        first = self.plan(slug='botany')
+        second = self.plan(slug='latin')
+
+        Award.objects.create(account=self.ada, kind=Award.Kind.SUSTAINED,
+                             listing=first, reason='A year on.')
+        Award.objects.create(account=self.ada, kind=Award.Kind.SUSTAINED,
+                             listing=second, reason='A year on.')
+
+        self.assertEqual(Award.objects.count(), 2)
+
+    def test_and_two_subjects_can_hold_the_same_badge(self):
+        co_op = self.org()
+
+        Award.objects.create(account=self.ada, kind=Award.Kind.FOUNDING,
+                             reason='Was here first.')
+        Award.objects.create(organisation=co_op, kind=Award.Kind.FOUNDING,
+                             reason='Was here first.')
+
+        self.assertEqual(Award.objects.count(), 2)
+
+    def test_a_nullable_listing_does_not_make_the_constraint_optional(self):
+        """SQL does not consider two NULLs equal, so a single constraint
+        naming `listing` would silently let the overall badges repeat. This is
+        the failure the four-constraint split exists to prevent, asserted
+        rather than trusted to the comment beside it."""
+        co_op = self.org()
+        Award.objects.create(organisation=co_op, kind=Award.Kind.PUBLISHED,
+                             reason='First plan.')
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Award.objects.create(organisation=co_op, kind=Award.Kind.PUBLISHED,
+                                 reason='Again.')
+
+
+class GrantingIsIdempotentTests(AwardFixture):
+    """§H.9 asks for "one idempotent function per badge kind", and every one
+    of them ends in `grant`. The events behind them -- a publish, an
+    acquisition, a review -- can arrive twice."""
+
+    def test_granting_twice_gives_one_badge(self):
+        first = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+        again = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+
+        self.assertEqual(first.pk, again.pk)
+        self.assertEqual(Award.objects.count(), 1)
+
+    def test_the_second_grant_does_not_rewrite_the_reason(self):
+        """`get_or_create` puts the reason in `defaults`, which is the whole
+        point: the sentence recorded is the one true when it was earned."""
+        grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+
+        again = grant(self.ada, Award.Kind.PUBLISHED, reason='Something else.')
+
+        self.assertEqual(again.reason, 'First plan.')
+
+    def test_a_revoked_badge_is_not_granted_again(self):
+        """A badge taken away for plagiarism must not come back because
+        another household downloaded the plan. Un-revoking is a decision
+        somebody makes."""
+        award = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+        award.revoke('Plan was not theirs to publish.')
+
+        again = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+
+        self.assertEqual(again.pk, award.pk)
+        self.assertFalse(again.is_current)
+        self.assertEqual(Award.objects.count(), 1)
+
+    def test_an_organisation_is_granted_its_own(self):
+        co_op = self.org()
+
+        award = grant(co_op, Award.Kind.FOUNDING, reason='Was here first.')
+
+        self.assertEqual(award.organisation, co_op)
+        self.assertIsNone(award.account)
+
+
+class RevokedNeverDeletedTests(AwardFixture):
+    """The precedent is four deep in these repositories. `Listing` gives the
+    reason that bites hardest: a takedown has to leave the row that says a
+    takedown happened."""
+
+    def test_revoking_keeps_the_row(self):
+        award = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+
+        award.revoke('Plagiarised.')
+
+        self.assertEqual(Award.objects.count(), 1)
+        self.assertEqual(Award.objects.get().revoked_reason, 'Plagiarised.')
+
+    def test_a_revocation_has_to_say_why(self):
+        """A badge pulled for plagiarism and a badge pulled because a rule was
+        wrong are different events, and a blank field makes them the same
+        event afterwards."""
+        award = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+
+        with self.assertRaises(ValidationError):
+            award.revoke('')
+
+        award.refresh_from_db()
+        self.assertTrue(award.is_current)
+
+    def test_revoking_twice_does_not_move_the_date(self):
+        award = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+        award.revoke('Plagiarised.')
+        first_time = award.revoked_at
+
+        award.revoke('Still plagiarised.')
+
+        self.assertEqual(award.revoked_at, first_time)
+        self.assertEqual(award.revoked_reason, 'Still plagiarised.')
+
+
+class WhatIsCurrentlyHeldTests(AwardFixture):
+    def test_awards_for_leaves_out_the_revoked(self):
+        kept = grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+        gone = grant(self.ada, Award.Kind.FOUNDING, reason='Was here first.')
+        gone.revoke('Granted in error.')
+
+        self.assertEqual(list(awards_for(self.ada)), [kept])
+
+    def test_awards_for_is_scoped_to_one_subject(self):
+        bob = self.make('bob')
+        grant(self.ada, Award.Kind.FOUNDING, reason='Was here first.')
+
+        self.assertEqual(list(awards_for(bob)), [])
+
+    def test_awards_on_asks_about_the_plan_not_its_owner(self):
+        """§H.5 splits them, and the listing page asks this one."""
+        botany = self.plan()
+        about_the_plan = grant(self.ada, Award.Kind.SUSTAINED, listing=botany,
+                               reason='A year on.')
+        grant(self.ada, Award.Kind.PUBLISHED, reason='First plan.')
+
+        self.assertEqual(list(awards_on(botany)), [about_the_plan])
+
+    def test_awards_on_leaves_out_the_revoked_too(self):
+        botany = self.plan()
+        award = grant(self.ada, Award.Kind.SUSTAINED, listing=botany,
+                      reason='A year on.')
+        award.revoke('Plan was withdrawn.')
+
+        self.assertEqual(list(awards_on(botany)), [])
+
+
+class WhenTheSubjectGoesAwayTests(AwardFixture):
+    """§H.5's succession table, which is `Listing`'s rules applied to credit."""
+
+    def test_a_deleted_account_takes_its_badges_with_it(self):
+        grant(self.ada, Award.Kind.FOUNDING, reason='Was here first.')
+
+        self.ada.delete()
+
+        self.assertEqual(Award.objects.count(), 0)
+
+    def test_an_organisation_holding_a_badge_cannot_be_deleted(self):
+        """PROTECT, because `is_active` exists so an organisation is
+        deactivated rather than deleted -- and this is what makes that rule
+        enforceable rather than merely written down."""
+        co_op = self.org()
+        grant(co_op, Award.Kind.FOUNDING, reason='Was here first.')
+
+        with self.assertRaises(ProtectedError), transaction.atomic():
+            co_op.delete()
+
+
+class BadgesOnTheProfilePageTests(AwardFixture):
+    def test_a_badge_is_shown_with_its_reason(self):
+        """The reason is not decoration. §H.3: a badge whose reason is empty
+        is a number nobody can explain."""
+        grant(self.ada, Award.Kind.PUBLISHED, reason='Published A Year of Botany.')
+
+        response = self.client.get(reverse('profile', args=['ada']))
+
+        self.assertContains(response, 'Published a plan')
+        self.assertContains(response, 'Published A Year of Botany.')
+
+    def test_a_revoked_badge_is_not_shown(self):
+        award = grant(self.ada, Award.Kind.PUBLISHED, reason='Published something.')
+        award.revoke('Plagiarised.')
+
+        response = self.client.get(reverse('profile', args=['ada']))
+
+        self.assertNotContains(response, 'Published a plan')
+        self.assertNotContains(response, 'Plagiarised.')
+
+    def test_somebody_with_none_gets_no_heading(self):
+        """An empty "Badges" heading promises a feature that is not there."""
+        response = self.client.get(reverse('profile', args=['ada']))
+
+        self.assertNotContains(response, 'Badges')

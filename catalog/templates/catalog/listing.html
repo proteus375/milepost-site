@@ -47,6 +47,26 @@
   "no history yet" is silence, which is what every other empty state in this
   project does.
   {% endcomment %}
+  {% comment %}
+  §H.3's badges, and these are the plan's rather than the owner's -- §H.5 puts
+  `WIDELY_USED`, `WELL_REVIEWED` and `SUSTAINED` on a listing because they are
+  facts about the work. The owner's own badge sits on their profile, where the
+  subject is the person.
+
+  Published only, on the same reasoning as the standing row below: on a draft
+  the sole reader is the editor.
+  {% endcomment %}
+  {% if plan.is_published and plan_awards %}
+    <ul class="award-list award-list-plan">
+      {% for award in plan_awards %}
+        <li class="award">
+          <strong>{{ award.get_kind_display }}</strong>
+          <span class="award-reason">{{ award.reason }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
   {% if plan.is_published and owner_facts.published > 1 %}
     <p class="plan-by plan-by-standing">
       {{ plan.owner_name }} has published

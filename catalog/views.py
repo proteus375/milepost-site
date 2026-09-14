@@ -31,6 +31,7 @@ from django.http import Http404
 from django.http import FileResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
+from accounts.models import awards_on
 from billing.models import entitlement_refusal
 
 from .forms import PackForm, PlanForm, ReviewForm
@@ -100,6 +101,11 @@ def listing(request, slug):
         # numbers are about the person, not about this listing, and a draft's
         # only reader is its own editor.
         'owner_facts': facts_for(plan.owner),
+        # Badges granted for THIS PLAN, not for its owner. §H.5 puts
+        # `WIDELY_USED`, `WELL_REVIEWED` and `SUSTAINED` on the listing and
+        # `PUBLISHED` on the person, so the owner's badges would say here
+        # only what the standing row above already says.
+        'plan_awards': awards_on(plan),
         'reviews': reviews.exclude(pk=mine.pk) if mine else reviews,
         'my_review': mine,
         # A sentence when they may not review, or None when they may. The

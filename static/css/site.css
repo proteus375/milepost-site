@@ -637,3 +637,46 @@
     margin-top: 1.9rem;
     color: var(--muted); font-size: .92rem;
   }
+
+  /* ---------------------------------------------------------------
+     REPUTATION -- the counted half (§H.2) and the granted half (§H.3).
+
+     Kept quiet on purpose. These sit beside somebody's name, and the
+     whole argument of §H.1 is that this is not a scoreboard: anything
+     that reads as a trophy case invites the farming the design spent
+     a section refusing. So: the same muted, small-caps-adjacent
+     register as `.plan-by`, and no colour that says "achievement".
+     --------------------------------------------------------------- */
+  .reputation {
+    list-style: none; margin: 1.1rem 0 0; padding: 0;
+    display: flex; flex-wrap: wrap; gap: .3rem .75rem;
+    color: var(--ink-soft); font-size: .95rem;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Separators drawn rather than typed, so the markup stays a list for
+     anybody reading it with a screen reader and the eye still sees a
+     row. The first item gets none -- `:not(:first-child)` rather than
+     a trailing one, which would dangle after the last. */
+  .reputation li:not(:first-child)::before {
+    content: "\00b7"; margin-right: .75rem; color: var(--rule-strong);
+  }
+
+  .award-list-heading { margin-top: 2.75rem; font-size: 1.15rem; }
+  .award-list {
+    list-style: none; margin: 1.4rem 0 0; padding: 0;
+    display: grid; gap: .7rem;
+  }
+  .award {
+    display: grid; gap: .15rem;
+    padding-left: .9rem; border-left: 3px solid var(--green);
+  }
+  .award strong { font-size: .95rem; }
+  /* The reason is the badge. §H.3: a badge whose reason is empty is a
+     number nobody can explain -- so it is set at readable size rather
+     than as fine print under a label. */
+  .award-reason { color: var(--ink-soft); font-size: .92rem; }
+
+  /* On a listing the badges are about the plan and sit under its lede,
+     so they are tighter and carry no heading -- the page is already
+     about this one thing. */
+  .award-list-plan { margin-top: 1.4rem; gap: .5rem; }

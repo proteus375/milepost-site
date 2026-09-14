@@ -24,7 +24,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from catalog.reputation import facts_for
 
 from .forms import ProfileForm, SignUpForm
-from .models import Account
+from .models import Account, awards_for
 
 
 def sign_up(request):
@@ -89,6 +89,10 @@ def profile(request, handle):
         # number that can be wrong, and these exist to be checkable against
         # rows anybody can see.
         'facts': facts_for(person),
+        # §H.3's badges -- the granted half, beside the counted one. Both
+        # render nothing when there is nothing, so a new account's page is
+        # still just a name.
+        'awards': awards_for(person),
     })
 
 

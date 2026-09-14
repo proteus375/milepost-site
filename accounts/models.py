@@ -54,17 +54,23 @@ README's own rule would call the honest time for it.
 No organisations. §C.4 designs them and says listings need an owner that
 outlives a person; that is a `catalog` concern and arrives with listings.
 
-No reputation. Points and badges attach here eventually -- §5 is explicit that
-they attach to the person, never to the installation, or a family farms them
-by standing up a second instance -- and there is nothing to attach to them
-until people can publish and review. The profile page is the surface they will
-hang from, which is most of why it exists this early.
+REPUTATION LIVES IN TWO HALVES AND ONLY ONE OF THEM IS HERE
+------------------------------------------------------------
+§H.2 splits it: derived facts are counted on read and stored nowhere, and
+`catalog.reputation` is that half. `Award` below is the other -- discrete
+grants, each with a reason and a date, each revocable. "A derived fact is a
+query; a badge is a decision. The line between them is whether a human or a
+rule had to judge something."
 
-When they arrive they should be recorded as awards with a reason and a date,
-never as a running total on this model. A number nobody can explain is a
-number nobody trusts, and this is the same argument the LMS just spent a
-change on: a mark is a record of what happened, not a figure recomputed from
-whatever the rules say today.
+Both attach to a person or an organisation and never to an installation, or a
+family farms reputation by standing up a second instance. §H.8 records that
+as a property rather than a prohibition: nothing in §H reads an installation
+fact at all.
+
+No running total anywhere, and that is §H.1 rather than an omission. A number
+nobody can explain is a number nobody trusts -- the same argument the LMS
+spent a change on, where a mark became a record of what happened rather than a
+figure recomputed from whatever the rules say today.
 """
 
 import base64
@@ -509,6 +515,292 @@ class OrganisationMembership(models.Model):
 #: ten minutes and says a code SHOULD be single-use; this is both, and one
 #: minute would probably also work.
 AUTHORIZATION_CODE_SECONDS = 300
+
+
+class AwardQuerySet(models.QuerySet):
+    def current(self):
+        """The ones still standing. The one place that decides it.
+
+        Deliberately the same shape as `ListingQuerySet.visible`, and for the
+        same reason: "is this displayable" is a question with one answer, and
+        a second copy of the filter is how a revoked badge ends up rendered on
+        a page somebody forgot about.
+        """
+        return self.filter(revoked_at__isnull=True)
+
+    def for_subject(self, subject):
+        """Everything held by one account or one organisation.
+
+        `isinstance` here where `catalog.reputation` duck-types on `slug`, and
+        the difference is not an inconsistency: that module cannot import
+        `Organisation` without reversing this project's one-way dependency,
+        and this one is defining it three classes up.
+        """
+        field = 'organisation' if isinstance(subject, Organisation) else 'account'
+        return self.filter(**{field: subject})
+
+
+class Award(models.Model):
+    """A badge, the reason it was granted, and whether it still stands.
+
+    THE THIRD MODEL IN THIS DESIGN CARRYING THE SAME OWNER SHAPE, after
+    `Listing` (§C.4.2) and `TermsAcceptance` (§C.4.7) -- two nullable subject
+    references with exactly one set. §C.4.7 gave the reason in a different
+    key: there, "who is answerable for this listing" and "who accepted the
+    terms that make them answerable" had to have the same possible answers.
+    Here it is **"who owns this work" and "who gets credit for it"**. If those
+    two questions can be answered differently, a co-op earns a badge with
+    nowhere to put it and the credit falls silently to whichever member
+    happened to press Publish -- which is the precise failure §C.4 was written
+    to prevent, arriving by a different door.
+
+    `reason` IS NOT BLANK, AND THAT IS A CONSTRAINT RATHER THAN A NICETY. It
+    is the field that makes the difference between this and a points total: a
+    badge whose reason is empty is a number nobody can explain. Enforced in
+    the database and not only by `full_clean`, because a rule that only holds
+    when somebody remembers to validate is a rule about programmer discipline
+    rather than about data.
+
+    REVOKED, NEVER DELETED. The precedent is four deep across these two
+    repositories -- an `IntegrationToken` is revoked, a `Material` archived,
+    an `Organisation` deactivated, a `Listing` withdrawn -- and `Listing`'s
+    own docstring gives the reason that bites hardest here: *a takedown has to
+    leave the row that says a takedown happened.* A badge granted for a plan
+    later found to be plagiarised must stop being displayed, and the fact that
+    Milepost once granted it has to survive, because that fact is the evidence
+    in any argument about what this platform vouched for and when.
+
+    NOT APPEND-ONLY, UNLIKE `TermsAcceptance`, and the difference is the one
+    `Review` already draws. An acceptance is evidence about somebody else's
+    act and must never be rewritten. An award is the platform's own statement,
+    and a platform must be able to withdraw its own statement. What it may not
+    do is pretend it never made it, which is what `revoked_at` buys and a
+    DELETE would not.
+
+    NO PRIVATE BADGES (§H.8). Everything here renders on a public page or it
+    should not exist: a badge nobody but its holder can see is a notification,
+    and the two should not share a model.
+    """
+
+    class Kind(models.TextChoices):
+        """§H.4's set, small on purpose.
+
+        The admissibility test each one had to pass: **faking it costs money
+        that goes to Milepost.** `PUBLISHED` costs a subscription, a plan
+        worth publishing and moderation; `WIDELY_USED` and `WELL_REVIEWED`
+        cost N and M paying households who each had to acquire the pack
+        first; `SUSTAINED` costs time, which is the one input that cannot be
+        bought. `FOUNDING` is not a rule at all, so there is nothing to farm.
+
+        **No badge here can be earned by a subject acting alone**, however
+        much they act, and that is what makes the set self-defending rather
+        than merely small.
+
+        THE ONE DELIBERATELY ABSENT: anything for reviewing. A review is free
+        to a subscriber who has already acquired a pack, so a "reviewed twenty
+        plans" badge is the single thing in this design one paying account
+        could farm by itself -- and it would farm it by writing twenty
+        careless reviews, degrading the exact signal reviews exist to produce.
+        §H.8 refuses the whole branch rather than deferring it, along with
+        streaks, login rewards and any activity score, which reward presence,
+        and presence is free.
+        """
+
+        PUBLISHED = 'PUBLISHED', 'Published a plan'
+        WIDELY_USED = 'WIDELY_USED', 'Widely used'
+        WELL_REVIEWED = 'WELL_REVIEWED', 'Well reviewed'
+        SUSTAINED = 'SUSTAINED', 'Still going a year on'
+        FOUNDING = 'FOUNDING', 'Founding contributor'
+
+    # CASCADE, as `Listing.owner_account` does and for the reason §H.5's
+    # succession table gives: a deleted account's badges go with it. There is
+    # nobody left for them to be about.
+    account = models.ForeignKey(
+        'Account', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='awards',
+    )
+    # PROTECT, as `Listing.owner_organisation` and `TermsAcceptance
+    # .organisation` do: `is_active` exists so that an organisation is
+    # deactivated rather than deleted, and this makes that enforceable rather
+    # than merely written down. Deactivating stops the badges being displayed
+    # with it and leaves every row intact -- §C.4.5's property, which §H.5
+    # then leans on.
+    organisation = models.ForeignKey(
+        'Organisation', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='awards',
+    )
+
+    kind = models.CharField(max_length=13, choices=Kind.choices)
+
+    # Set when the award is FOR a particular plan, null when it is about the
+    # subject overall. §H.5 splits which is which: `WIDELY_USED`,
+    # `WELL_REVIEWED` and `SUSTAINED` are facts about a plan and hang off one;
+    # `PUBLISHED` is about the person who did the work and does not.
+    #
+    # A string reference rather than an import. `catalog` imports this module,
+    # so importing `catalog.models` here would close the loop -- Django's lazy
+    # resolution is the intended way out and costs nothing.
+    listing = models.ForeignKey(
+        'catalog.Listing', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='awards',
+    )
+
+    #: The sentence a reader is shown: "A year of botany has been used by 40
+    #: families." Never a bare label -- see the class docstring.
+    reason = models.TextField()
+
+    awarded_at = models.DateTimeField(default=timezone.now)
+
+    #: Null means a rule granted it; set means a person did. SET_NULL because
+    #: the grant is not undone by the operator who made it closing their
+    #: account -- the same reasoning `Listing.contributed_by` uses.
+    awarded_by = models.ForeignKey(
+        'Account', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='awards_granted',
+    )
+
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.TextField(blank=True)
+
+    objects = AwardQuerySet.as_manager()
+
+    class Meta:
+        ordering = ['-awarded_at']
+        constraints = [
+            models.CheckConstraint(
+                name='award_has_exactly_one_subject',
+                condition=(
+                    models.Q(account__isnull=False, organisation__isnull=True)
+                    | models.Q(account__isnull=True, organisation__isnull=False)
+                ),
+            ),
+            models.CheckConstraint(
+                name='award_reason_is_not_blank',
+                condition=~models.Q(reason=''),
+            ),
+            # §H.3 asks for uniqueness on (subject, kind, listing). That is
+            # FOUR constraints rather than one, because the subject is two
+            # columns and `listing` is nullable -- and SQL does not consider
+            # two NULLs equal, so a single constraint naming a nullable column
+            # would let the overall-subject badges be granted any number of
+            # times. Postgres 15 offers NULLS NOT DISTINCT and this project
+            # runs SQLite locally, so the portable form is the one that ships.
+            models.UniqueConstraint(
+                fields=['account', 'kind'],
+                condition=models.Q(account__isnull=False, listing__isnull=True),
+                name='one_overall_award_per_account_per_kind',
+            ),
+            models.UniqueConstraint(
+                fields=['account', 'kind', 'listing'],
+                condition=models.Q(account__isnull=False, listing__isnull=False),
+                name='one_award_per_account_per_kind_per_listing',
+            ),
+            models.UniqueConstraint(
+                fields=['organisation', 'kind'],
+                condition=models.Q(organisation__isnull=False, listing__isnull=True),
+                name='one_overall_award_per_organisation_per_kind',
+            ),
+            models.UniqueConstraint(
+                fields=['organisation', 'kind', 'listing'],
+                condition=models.Q(organisation__isnull=False, listing__isnull=False),
+                name='one_award_per_organisation_per_kind_per_listing',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.get_kind_display()} for {self.subject}'
+
+    @property
+    def subject(self):
+        """The account or organisation this is about. Never None.
+
+        Same name and same contract as `Listing.owner` and
+        `TermsAcceptance.subject`, so that a template asking a row who it
+        belongs to gets the same answer however it arrived.
+        """
+        return self.account if self.account_id else self.organisation
+
+    @property
+    def is_current(self):
+        return self.revoked_at is None
+
+    def revoke(self, reason, *, at=None):
+        """Withdraw the platform's statement, keeping the record that it made it.
+
+        A reason is required and is not defaulted. The revocation is itself a
+        statement Milepost may later have to explain -- a badge pulled for
+        plagiarism and a badge pulled because a rule was wrong are different
+        events, and a blank field makes them the same event afterwards.
+
+        Idempotent on the timestamp: revoking twice does not move the date of
+        the first revocation, because that date is the fact.
+        """
+        reason = (reason or '').strip()
+        if not reason:
+            raise ValidationError('A revocation has to say why.')
+        if self.revoked_at is None:
+            self.revoked_at = at or timezone.now()
+        self.revoked_reason = reason
+        self.save(update_fields=['revoked_at', 'revoked_reason'])
+        return self
+
+
+def grant(subject, kind, *, reason, listing=None, awarded_by=None):
+    """Grant a badge if it is not already held. **Idempotent.**
+
+    THE MECHANISM, NOT THE POLICY. Which subject earns which badge when is one
+    rule per kind and lives where the events are; this is only the part that
+    must not double-grant. §H.9 asks for "one idempotent function per badge
+    kind, run on the events that can change the answer", and every one of them
+    ends here.
+
+    IDEMPOTENT VIA `get_or_create` RATHER THAN AN `exists()` CHECK, because
+    the events that grant badges arrive concurrently -- two acquisitions of
+    the same plan in the same second -- and a check-then-insert has a window
+    between the two halves that the unique constraints would turn into an
+    IntegrityError on a perfectly ordinary Tuesday.
+
+    A REVOKED BADGE IS STILL HELD, and this returns it rather than granting a
+    second one. Un-revoking is a decision somebody makes, not something a rule
+    does quietly the next time it runs: a badge taken away for plagiarism must
+    not come back because another household downloaded the plan.
+    """
+    if not (reason or '').strip():
+        raise ValidationError('An award has to say why it was granted.')
+    field = 'organisation' if isinstance(subject, Organisation) else 'account'
+    award, _ = Award.objects.get_or_create(
+        **{field: subject}, kind=kind, listing=listing,
+        defaults={'reason': reason.strip(), 'awarded_by': awarded_by},
+    )
+    return award
+
+
+def awards_for(subject):
+    """Everything this subject currently holds, newest first.
+
+    For the profile page. Returns a queryset rather than a list so a caller
+    can narrow it without this growing arguments.
+    """
+    return Award.objects.for_subject(subject).current()
+
+
+def awards_on(listing):
+    """Everything currently granted FOR one plan, newest first.
+
+    A DIFFERENT QUESTION FROM `awards_for`, and the listing page asks this
+    one. §H.5 splits them: `WIDELY_USED`, `WELL_REVIEWED` and `SUSTAINED` are
+    facts about a plan and hang off a listing; `PUBLISHED` is about the person
+    who did the work and does not. Rendering the owner's badges here instead
+    would put "this person has published before" on a page whose subject is
+    this plan -- which the standing row beside it already says, better.
+
+    Written as a function rather than left to `listing.awards.current()`,
+    which does work: a reverse manager is built from the related model's
+    default manager, so `AwardQuerySet.current` really is there. That is a
+    fact about Django's internals, though, and a caller reading it has to know
+    it to be sure the page is not silently showing revoked badges.
+    """
+    return Award.objects.filter(listing=listing).current()
 
 
 class AuthorizationCode(models.Model):

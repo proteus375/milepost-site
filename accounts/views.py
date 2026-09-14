@@ -9,6 +9,20 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
+# THE ONE-WAY RULE BENDS FOR A VIEW AND NEVER FOR A MODEL. `catalog` imports
+# `accounts` because a listing needs an owner; `accounts` importing `catalog`
+# back would ordinarily be the start of a cycle. It is safe in exactly this
+# direction and exactly here: a view runs long after both app registries are
+# loaded, so nothing is half-built when this executes, and `profile` is the
+# template rendering the facts rather than a model depending on them. The
+# reverse -- a `catalog` model importing an `accounts` view -- would be the
+# real cycle, and nothing does it.
+#
+# The alternative was a lazy import inside `profile`. That hides the
+# dependency from anybody reading the file's imports to find out what this app
+# touches, which is the thing the rule is protecting.
+from catalog.reputation import facts_for
+
 from .forms import ProfileForm, SignUpForm
 from .models import Account
 
@@ -47,11 +61,15 @@ def profile(request, handle):
     operator signed up for a login, not for a page announcing them as a
     member.
 
-    This is where reputation will appear -- see the note in models.py. It is
-    built now, before there is anything to put on it, because a public
-    identity with no public page is not yet a public identity, and every
-    achievement in that design is a thing somebody else is supposed to be
-    able to see.
+    REPUTATION IS HERE NOW, and it is the derived half only. §H.2 splits it
+    into facts that are counted and badges that are granted; `reputation.py`
+    is the first and stores nothing, so this page gained four numbers and no
+    new table. Badges are a model and a later step.
+
+    The facts are computed even for a person with nothing published -- four
+    cheap counts -- and the template renders none of it when `published` is
+    zero. Deciding that here instead would put "what is worth showing" in two
+    places, and the template is the one that knows what a row looks like.
     """
     person = get_object_or_404(
         Account, handle=handle.lower(), is_active=True, is_public=True,
@@ -66,6 +84,11 @@ def profile(request, handle):
         # `visible()` is the one place that decides what a stranger sees, so
         # drafts stay out of this without this page having an opinion.
         'plans': person.listings.visible(),
+        # Four queries on a page that already runs one. Not cached, and
+        # `reputation.facts_for` argues why: a stored reputation number is a
+        # number that can be wrong, and these exist to be checkable against
+        # rows anybody can see.
+        'facts': facts_for(person),
     })
 
 

@@ -8,11 +8,14 @@ credential, and keeping it off here is why the model has a separate `handle`
 at all. Nothing else about them either, because nothing else has been
 published yet.
 
-This is where reputation will appear when there is any. It is built before
-that, because a public identity with no public page is not a public identity,
-and every badge in that design is a thing somebody ELSE is meant to see.
-There is no placeholder for it: an empty "Badges" heading would promise a
-feature that does not exist.
+Reputation is here now -- §H.2's derived facts, which are queries rather than
+columns. Badges are not: they are a separate model and a later step, and an
+empty "Badges" heading would promise a feature that does not exist.
+
+NOTHING RENDERS WHEN THERE IS NOTHING. A person who has published nothing gets
+the page they had before rather than a row of zeroes, because a zero here is
+not a fact about them -- it is the absence of one, and a page asserting "0
+families" about somebody who never published reads as a judgement.
 {% endcomment %}
 
 {% block title %}{{ person.public_name }} &mdash; Milepost{% endblock %}
@@ -26,6 +29,41 @@ feature that does not exist.
     {% if person.display_name %}@{{ person.handle }} &middot; {% endif %}
     Joined {{ person.date_joined|date:"F Y" }}
   </p>
+
+  {% if facts.published %}
+    {% comment %}
+    THE COUNT ALWAYS TRAVELS WITH THE AVERAGE. `Listing.average_rating` set
+    this rule and argued it first: the number is real from the first review,
+    and the count is what makes it readable. Four-and-a-half from two reviews
+    and four-and-a-half from two hundred are different claims.
+
+    "Families" and not "downloads" -- §H.2 said to say the latter until
+    households were countable, because a distinct-account count overstates in
+    the publisher's favour. `billing` made them countable, so this is the
+    honest number rather than the cautious one.
+    {% endcomment %}
+    <ul class="reputation">
+      <li>{{ facts.published }} plan{{ facts.published|pluralize }} published</li>
+      {% if facts.households %}
+        <li>used by {{ facts.households }} famil{{ facts.households|pluralize:"y,ies" }}</li>
+      {% endif %}
+      {% if facts.reviews %}
+        <li>
+          {{ facts.average_rating|floatformat:1 }} out of 5,
+          from {{ facts.reviews }} review{{ facts.reviews|pluralize }}
+        </li>
+      {% endif %}
+      {% comment %}
+      Shown only when it differs from what they own. §C.4.2 split the two so
+      "Published by Oak Hill Co-op, contributed by Priya" could be rendered --
+      but on a person's own page, "3 published, 3 contributed" is one fact
+      said twice.
+      {% endcomment %}
+      {% if facts.contributed and facts.contributed != facts.published %}
+        <li>{{ facts.contributed }} contributed to others&rsquo; plans</li>
+      {% endif %}
+    </ul>
+  {% endif %}
 
   {% comment %}
   The first thing this page has ever had on it besides a name. Published

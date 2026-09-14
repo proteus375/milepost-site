@@ -30,6 +30,38 @@
     {% endif %}
   </p>
 
+  {% comment %}
+  What the owner has done elsewhere -- §H.2's derived facts, about the person
+  or co-op rather than about this plan.
+
+  HERE BECAUSE HERE IS WHERE THE QUESTION IS ASKED. A parent on this page is
+  deciding whether to trust a stranger's course with a year of their child's
+  schooling, and "four plans, used by thirty families" is what answers it. One
+  click away on a profile they have no reason to visit is not the same thing.
+
+  PUBLISHED PLANS ONLY, and only on a published page: on a draft the sole
+  reader is the editor, who does not need telling about themselves.
+
+  NOTHING RENDERS WHEN THIS IS THEIR FIRST. A row of zeroes beside somebody's
+  first plan is not information, it is a verdict -- and the honest reading of
+  "no history yet" is silence, which is what every other empty state in this
+  project does.
+  {% endcomment %}
+  {% if plan.is_published and owner_facts.published > 1 %}
+    <p class="plan-by plan-by-standing">
+      {{ plan.owner_name }} has published
+      {{ owner_facts.published }} plan{{ owner_facts.published|pluralize }}
+      {% if owner_facts.households %}
+        &middot; used by {{ owner_facts.households }}
+        famil{{ owner_facts.households|pluralize:"y,ies" }}
+      {% endif %}
+      {% if owner_facts.reviews %}
+        &middot; {{ owner_facts.average_rating|floatformat:1 }} out of 5
+        across {{ owner_facts.reviews }} review{{ owner_facts.reviews|pluralize }}
+      {% endif %}
+    </p>
+  {% endif %}
+
   {% if plan.description %}
     <div class="plan-body">{{ plan.description|linebreaks }}</div>
   {% endif %}

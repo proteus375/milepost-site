@@ -22,6 +22,7 @@ from django.utils import timezone
 
 from accounts.models import Account, Organisation, OrganisationMembership
 from billing.models import Household, HouseholdMembership
+from catalog import reputation
 from catalog.packs import attach
 from catalog.models import (
     Acquisition, Review, may_review, record_acquisition,
@@ -1386,3 +1387,257 @@ class WhatTheListingPageOffersTests(CatalogFixture):
 
         response = self.client.get(draft.get_absolute_url())
         self.assertContains(response, 'Download the pack')
+
+
+# ---------------------------------------------------------------------------
+# §H.2's derived facts
+# ---------------------------------------------------------------------------
+
+class ReputationFixture(CatalogFixture):
+    """A published plan, owned by `self.ada`, taken by whoever is asked for."""
+
+    def setUp(self):
+        super().setUp()
+        self.ada = self.person('ada')
+        self.plan_of_ada = self.plan(
+            slug='botany', owner_account=self.ada,
+            status=Listing.Status.PUBLISHED,
+        )
+
+    def assertSays(self, response, text):
+        """`assertContains` with the page's whitespace collapsed first.
+
+        A template wraps its lines for whoever has to read the template, so
+        "has published\n      2 plans" is the same sentence as "has published
+        2 plans" to every reader except a substring search. A test that fails
+        when somebody rewraps a line is testing the wrapping, and the next
+        person to hit it will fix it by unwrapping the template -- which makes
+        the template worse to serve the test.
+
+        Only for phrases that span a line break in the rendered output.
+        Everything contiguous stays on `assertContains`, which reports better.
+        """
+        self.assertEqual(response.status_code, 200)
+        rendered = ' '.join(response.content.decode(response.charset).split())
+        self.assertIn(text, rendered, f'{text!r} is not anywhere on this page')
+
+    def taken_by(self, account, listing=None, rating=None):
+        """Record an acquisition, and optionally a review, as the app would."""
+        listing = listing or self.plan_of_ada
+        acquisition = record_acquisition(listing, account)
+        if rating is not None and acquisition is not None:
+            Review.objects.create(
+                listing=listing, account=account,
+                household=acquisition.household, rating=rating,
+            )
+        return acquisition
+
+
+class DerivedFactsAreQueriesTests(ReputationFixture):
+    """§H.2: "Nothing is stored that could be counted." Every number below is
+    recomputed, and the tests prove it by changing rows and re-asking."""
+
+    def test_a_person_with_nothing_published_has_nothing(self):
+        """Not zeroes rendered as achievements -- the page shows nothing at
+        all, which is what the absence of a fact looks like."""
+        nobody = self.person('nobody')
+
+        facts = reputation.facts_for(nobody)
+
+        self.assertEqual(facts['published'], 0)
+        self.assertEqual(facts['households'], 0)
+        self.assertEqual(facts['reviews'], 0)
+        self.assertIsNone(facts['average_rating'])
+
+    def test_published_counts_only_published(self):
+        """A draft must not move anybody's numbers: they would rise without
+        anything being shared."""
+        self.plan(slug='draft', owner_account=self.ada)
+
+        self.assertEqual(reputation.facts_for(self.ada)['published'], 1)
+
+    def test_it_is_recomputed_rather_than_stored(self):
+        self.assertEqual(reputation.facts_for(self.ada)['published'], 1)
+        self.plan(slug='second', owner_account=self.ada,
+                  status=Listing.Status.PUBLISHED)
+
+        self.assertEqual(reputation.facts_for(self.ada)['published'], 2)
+
+    def test_somebody_elses_plan_is_not_theirs(self):
+        other = self.person('bob')
+        self.plan(slug='theirs', owner_account=other,
+                  status=Listing.Status.PUBLISHED)
+
+        self.assertEqual(reputation.facts_for(self.ada)['published'], 1)
+
+
+class HouseholdsNotAccountsTests(ReputationFixture):
+    """§H.2 said to render this as "downloaded N times" until households were
+    countable, because a distinct-ACCOUNT count overstates in the publisher's
+    favour -- two linked parents read as two families. `billing` made them
+    countable, so this counts the honest number."""
+
+    def test_one_household_taking_a_copy_counts_once(self):
+        self.taken_by(self.subscriber('priya'))
+
+        self.assertEqual(reputation.facts_for(self.ada)['households'], 1)
+
+    def test_two_parents_on_one_household_count_once(self):
+        """THE TEST THIS WHOLE DECISION EXISTS FOR. Both parents may hold a
+        copy -- downloading is not an opinion -- and they are one family."""
+        mother = self.person('mother')
+        father = self.person('father')
+        self.household(mother, father, name='The Bhatts')
+
+        self.taken_by(mother)
+        self.taken_by(father)
+
+        self.assertEqual(reputation.facts_for(self.ada)['households'], 1)
+
+    def test_two_households_count_twice(self):
+        self.taken_by(self.subscriber('priya'))
+        self.taken_by(self.subscriber('sam'))
+
+        self.assertEqual(reputation.facts_for(self.ada)['households'], 2)
+
+    def test_one_household_taking_two_plans_counts_once(self):
+        """Families served, not copies handed out. The second is a number
+        about the publisher's activity; the first is about their reach."""
+        second = self.plan(slug='second', owner_account=self.ada,
+                           status=Listing.Status.PUBLISHED)
+        priya = self.subscriber('priya')
+
+        self.taken_by(priya)
+        self.taken_by(priya, listing=second)
+
+        self.assertEqual(reputation.facts_for(self.ada)['households'], 1)
+
+
+class RatingsTravelInPairsTests(ReputationFixture):
+    """`Listing.average_rating` set the rule: the number is real from the first
+    review, and the count is what makes it readable."""
+
+    def test_no_reviews_is_none_rather_than_zero(self):
+        """Zero is a verdict somebody could have given. None is the absence of
+        any, and "0.0 out of 5" for a plan nobody reviewed invents one."""
+        count, average = reputation.ratings(self.ada)
+
+        self.assertEqual(count, 0)
+        self.assertIsNone(average)
+
+    def test_the_average_is_over_every_plan_they_own(self):
+        second = self.plan(slug='second', owner_account=self.ada,
+                           status=Listing.Status.PUBLISHED)
+        self.taken_by(self.subscriber('priya'), rating=5)
+        self.taken_by(self.subscriber('sam'), listing=second, rating=3)
+
+        count, average = reputation.ratings(self.ada)
+
+        self.assertEqual(count, 2)
+        self.assertEqual(average, 4)
+
+    def test_a_review_of_somebody_elses_plan_is_not_counted(self):
+        other = self.person('bob')
+        theirs = self.plan(slug='theirs', owner_account=other,
+                           status=Listing.Status.PUBLISHED)
+        self.taken_by(self.subscriber('priya'), listing=theirs, rating=1)
+
+        self.assertEqual(reputation.ratings(self.ada)[0], 0)
+
+
+class ContributionIsNotOwnershipTests(ReputationFixture):
+    """§C.4.2 split them so both could be rendered: "Published by Oak Hill
+    Co-op, contributed by Priya". The split pays for itself again here."""
+
+    def test_a_co_op_plan_counts_for_the_person_who_published_it(self):
+        priya = self.person('priya')
+        co_op = self.co_op(owner=priya)
+        self.plan(slug='co-op-plan', owner_organisation=co_op,
+                  contributed_by=priya, status=Listing.Status.PUBLISHED)
+
+        facts = reputation.facts_for(priya)
+
+        self.assertEqual(facts['published'], 0)
+        self.assertEqual(facts['contributed'], 1)
+
+    def test_the_co_op_owns_it(self):
+        priya = self.person('priya')
+        co_op = self.co_op(owner=priya)
+        self.plan(slug='co-op-plan', owner_organisation=co_op,
+                  contributed_by=priya, status=Listing.Status.PUBLISHED)
+
+        self.assertEqual(reputation.facts_for(co_op)['published'], 1)
+
+    def test_an_organisation_is_not_asked_a_question_it_cannot_answer(self):
+        """Absent rather than zero. An organisation cannot press Publish, so
+        "0 contributed" would be an answer to a question with no meaning."""
+        co_op = self.co_op()
+
+        self.assertNotIn('contributed', reputation.facts_for(co_op))
+
+
+class TheProfilePageTests(ReputationFixture):
+    def test_it_shows_what_they_published(self):
+        self.taken_by(self.subscriber('priya'), rating=4)
+
+        response = self.client.get(reverse('profile', args=['ada']))
+
+        self.assertContains(response, '1 plan published')
+        self.assertContains(response, '1 family')
+
+    def test_a_person_with_nothing_gets_no_row_of_zeroes(self):
+        """A zero here is not a fact about somebody. It is the absence of one,
+        and a page asserting "0 families" reads as a judgement.
+
+        ASSERTED ON THE ELEMENT RATHER THAN ON THE WORDS. "famil" appears six
+        times in this page's own furniture -- "homeschooling families",
+        "Milepost Family", the contact address -- so a word search here would
+        be answering a question about the footer. The block either rendered or
+        it did not, and its class name is the thing that says which.
+        """
+        self.person('nobody')
+
+        response = self.client.get(reverse('profile', args=['nobody']))
+
+        self.assertNotContains(response, 'class="reputation"')
+        self.assertNotContains(response, 'plan published')
+
+    def test_the_count_is_never_shown_without_the_average(self):
+        self.taken_by(self.subscriber('priya'), rating=4)
+
+        response = self.client.get(reverse('profile', args=['ada']))
+
+        self.assertContains(response, 'out of 5')
+        self.assertContains(response, '1 review')
+
+
+class TheListingPageShowsTheOwnersStandingTests(ReputationFixture):
+    """Where the question is actually asked: a parent deciding whether to
+    trust a stranger's course with a year of their child's schooling."""
+
+    def test_a_second_plan_brings_the_standing_with_it(self):
+        self.plan(slug='second', owner_account=self.ada,
+                  status=Listing.Status.PUBLISHED)
+        self.taken_by(self.subscriber('priya'))
+
+        response = self.client.get(reverse('listing', args=['botany']))
+
+        self.assertSays(response, 'has published 2 plans')
+        self.assertSays(response, 'used by 1 family')
+
+    def test_a_first_plan_shows_nothing(self):
+        """A row of zeroes beside somebody's first plan is not information,
+        it is a verdict."""
+        response = self.client.get(reverse('listing', args=['botany']))
+
+        self.assertNotContains(response, 'has published')
+
+    def test_a_draft_does_not_show_it_to_its_own_editor(self):
+        self.client.force_login(self.ada)
+        self.plan(slug='second', owner_account=self.ada,
+                  status=Listing.Status.PUBLISHED)
+        draft = self.plan(slug='draft', owner_account=self.ada)
+
+        response = self.client.get(reverse('listing', args=[draft.slug]))
+
+        self.assertNotContains(response, 'has published')

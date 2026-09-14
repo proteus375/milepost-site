@@ -37,6 +37,7 @@ from .forms import PackForm, PlanForm, ReviewForm
 from .models import (
     Listing, Review, Subject, acquisition_for, may_review, record_acquisition,
 )
+from .reputation import facts_for
 
 
 def plans(request):
@@ -87,6 +88,18 @@ def listing(request, slug):
 
     return render(request, 'catalog/listing.html', {
         'plan': plan,
+        # §H.2's derived facts, about the OWNER rather than the plan.
+        #
+        # WHY THEY BELONG HERE AND NOT ONLY ON A PROFILE. This is where a
+        # parent decides whether to trust a stranger's course with their
+        # child's year, and "published four plans, used by thirty families" is
+        # what answers that -- on the page where the question is being asked,
+        # not one click away on a page they have no reason to visit.
+        #
+        # Computed for a draft too and rendered only when published: the
+        # numbers are about the person, not about this listing, and a draft's
+        # only reader is its own editor.
+        'owner_facts': facts_for(plan.owner),
         'reviews': reviews.exclude(pk=mine.pk) if mine else reviews,
         'my_review': mine,
         # A sentence when they may not review, or None when they may. The

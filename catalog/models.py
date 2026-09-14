@@ -518,6 +518,25 @@ class Listing(models.Model):
             'contributed_by', 'terms_version', 'status', 'published_at',
             'updated_at',
         ])
+
+        # §H.9: badge rules run "on the events that can change the answer",
+        # and this is that event for `PUBLISHED`.
+        #
+        # IMPORTED HERE RATHER THAN AT THE TOP, because `awarding` imports this
+        # module -- it needs `Listing` to scan for its periodic pass -- so a
+        # module-level import would close the loop. A local import inside the
+        # one function that needs it is the ordinary way out, and it is worth
+        # noticing that this is the only direction the cycle can be broken
+        # from: the rules cannot stop needing the model, but the model needs
+        # the rules only at the moment somebody presses Publish.
+        #
+        # NOT IN A `try`. If granting a badge fails, the publish has already
+        # been written and the exception belongs in front of whoever pressed
+        # the button -- a silent pass here would leave a published plan whose
+        # author quietly never got credit, and `manage.py awards` would be the
+        # only thing that ever noticed.
+        from .awarding import award_published
+        award_published(self)
         return self
 
 

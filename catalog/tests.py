@@ -10,9 +10,11 @@ to find out is whether it reaches the database at all.
 
 import tempfile
 from datetime import timedelta
+from io import StringIO
 
 from courselms_format import COURSE_FORMAT, build_from_document
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -24,7 +26,7 @@ from accounts.models import (
     Account, Award, Organisation, OrganisationMembership, grant,
 )
 from billing.models import Household, HouseholdMembership
-from catalog import reputation
+from catalog import awarding, reputation
 from catalog.packs import attach
 from catalog.models import (
     Acquisition, Review, may_review, record_acquisition,
@@ -1686,3 +1688,256 @@ class BadgesOnTheListingPageTests(ReputationFixture):
         response = self.client.get(reverse('listing', args=[draft.slug]))
 
         self.assertNotContains(response, 'Should not be on a draft.')
+
+
+class BadgeRulesFixture(CatalogFixture):
+    """A person who has accepted the terms, so `publish` will actually run."""
+
+    def setUp(self):
+        super().setUp()
+        self.ada = self.person('ada')
+        accept_terms(self.ada, accepted_by=self.ada)
+
+    def published(self, slug='botany', *, by=None, **extra):
+        by = by or self.ada
+        extra.setdefault('owner_account', by)
+        return self.plan(slug=slug, **extra).publish(by=by)
+
+    def a_year_later(self, listing):
+        """The first instant `SUSTAINED` can be true, read off the constant
+        rather than written as 365 again -- so a change to the rule moves the
+        tests with it instead of leaving them asserting the old one."""
+        return listing.published_at + awarding.SUSTAINED_AFTER
+
+
+class PublishingEarnsTheBadgeTests(BadgeRulesFixture):
+    """§H.9: badge rules run "on the events that can change the answer", and
+    a publish is that event for `PUBLISHED`."""
+
+    def test_publishing_grants_it(self):
+        listing = self.published()
+
+        award = Award.objects.get(kind=Award.Kind.PUBLISHED)
+        self.assertEqual(award.subject, self.ada)
+        self.assertIn(listing.title, award.reason)
+
+    def test_a_second_plan_does_not_grant_a_second_badge(self):
+        """`PUBLISHED` is about having published, not about how often. The
+        count of plans is a derived fact and already on the page."""
+        self.published(slug='botany')
+        self.published(slug='latin')
+
+        self.assertEqual(Award.objects.filter(kind=Award.Kind.PUBLISHED).count(), 1)
+
+    def test_a_draft_grants_nothing(self):
+        self.plan(slug='draft', owner_account=self.ada)
+
+        self.assertEqual(Award.objects.count(), 0)
+
+    def test_it_hangs_off_the_person_not_the_plan(self):
+        """§H.5: `PUBLISHED` is about the person who did the work. A badge
+        tied to one listing would say something narrower and would be granted
+        again for every plan."""
+        self.published()
+
+        self.assertIsNone(Award.objects.get(kind=Award.Kind.PUBLISHED).listing)
+
+
+class ACoOpAndItsContributorBothGetCreditTests(BadgeRulesFixture):
+    """The reading `awarding.award_published` had to settle: §H.4 names the
+    subject as "contributor, and owner"; §H.5's split table says "the
+    contributor, always a person". Both, because §H.5's own prose says a
+    co-op's work accrues to the co-op AND the person keeps visible credit."""
+
+    def co_op_plan(self):
+        # `co_op(owner=...)` rather than `add_member`, which grants the
+        # ordinary publishing role. `accept_terms` refuses anybody but an
+        # OWNER, because `legal/publisher-terms.md` says an organisation
+        # accepts through one of its owners -- accepting is an ownership act,
+        # not a publishing one.
+        organisation = self.co_op(owner=self.ada)
+        accept_terms(organisation, accepted_by=self.ada)
+        return self.plan(
+            slug='co-op-plan', owner_organisation=organisation,
+        ).publish(by=self.ada), organisation
+
+    def test_the_co_op_gets_one(self):
+        """Without this it would hold no badge at all until step 5, and a
+        co-op page reading as "has done nothing" is the misreading §C.4
+        exists to prevent."""
+        _, organisation = self.co_op_plan()
+
+        self.assertTrue(
+            Award.objects.filter(
+                organisation=organisation, kind=Award.Kind.PUBLISHED,
+            ).exists()
+        )
+
+    def test_and_so_does_the_person_who_did_the_work(self):
+        self.co_op_plan()
+
+        self.assertTrue(
+            Award.objects.filter(
+                account=self.ada, kind=Award.Kind.PUBLISHED,
+            ).exists()
+        )
+
+    def test_a_personal_plan_grants_one_badge_and_not_two(self):
+        """The contributor and the owner are the same account. This falls out
+        of `grant` being idempotent rather than being checked anywhere, which
+        is the way round it should be."""
+        self.published()
+
+        self.assertEqual(Award.objects.count(), 1)
+
+
+class SustainedIsTimeAndNothingElseTests(BadgeRulesFixture):
+    """§H.4: what faking it costs is time, "the one input that cannot be
+    bought" -- which is why it needs no threshold to argue about."""
+
+    def test_not_granted_the_day_before(self):
+        listing = self.published()
+
+        awarding.run(as_of=self.a_year_later(listing) - timedelta(days=1))
+
+        self.assertFalse(Award.objects.filter(kind=Award.Kind.SUSTAINED).exists())
+
+    def test_granted_at_twelve_months(self):
+        listing = self.published()
+
+        awarding.run(as_of=self.a_year_later(listing))
+
+        award = Award.objects.get(kind=Award.Kind.SUSTAINED)
+        self.assertEqual(award.listing, listing)
+        self.assertEqual(award.subject, self.ada)
+
+    def test_a_withdrawn_plan_earns_nothing(self):
+        """"Still live and unwithdrawn at twelve months". `visible()` is the
+        one place that decides what is live, so this asks it rather than
+        testing the status field again."""
+        listing = self.published()
+        listing.status = Listing.Status.WITHDRAWN
+        listing.save(update_fields=['status'])
+
+        awarding.run(as_of=self.a_year_later(listing))
+
+        self.assertFalse(Award.objects.filter(kind=Award.Kind.SUSTAINED).exists())
+
+    def test_it_goes_to_the_co_op_rather_than_the_contributor(self):
+        """§H.5: it is a fact about the plan, and the plan belongs to whoever
+        owns it. A contributor who leaves does not take it with them, for the
+        same reason they do not take the plan."""
+        organisation = self.co_op(owner=self.ada)
+        accept_terms(organisation, accepted_by=self.ada)
+        listing = self.plan(
+            slug='co-op-plan', owner_organisation=organisation,
+        ).publish(by=self.ada)
+
+        awarding.run(as_of=self.a_year_later(listing))
+
+        award = Award.objects.get(kind=Award.Kind.SUSTAINED)
+        self.assertEqual(award.subject, organisation)
+
+    def test_a_listing_with_no_published_date_is_skipped_rather_than_guessed(self):
+        """The admin can move a listing to PUBLISHED and leave the date null,
+        and today that is the ordinary path. `created_at` is when somebody
+        started writing, which can be a year before anybody saw it -- so there
+        is no honest date to substitute."""
+        self.plan(slug='by-hand', owner_account=self.ada,
+                  status=Listing.Status.PUBLISHED)
+
+        awarding.run(as_of=timezone.now() + timedelta(days=800))
+
+        self.assertFalse(Award.objects.filter(kind=Award.Kind.SUSTAINED).exists())
+
+
+class ThePeriodicPassTests(BadgeRulesFixture):
+    """§H.9's pass, which is also the repair for a rule that failed to fire."""
+
+    def test_it_grants_for_a_listing_published_from_the_admin(self):
+        """`ListingAdmin` can set the status directly, bypassing `publish` --
+        and it has to, because `publish` refuses without a terms acceptance
+        that cannot be collected until counsel has read the terms. A rule
+        wired only to the method would grant nothing while that holds."""
+        self.plan(slug='by-hand', owner_account=self.ada,
+                  status=Listing.Status.PUBLISHED,
+                  contributed_by=self.ada)
+
+        awarding.run()
+
+        self.assertTrue(
+            Award.objects.filter(kind=Award.Kind.PUBLISHED).exists()
+        )
+
+    def test_running_it_twice_grants_nothing_new(self):
+        listing = self.published()
+
+        awarding.run(as_of=self.a_year_later(listing))
+        second = awarding.run(as_of=self.a_year_later(listing))
+
+        self.assertEqual(second['new'], [])
+        self.assertEqual(Award.objects.count(), 2)
+
+    def test_it_never_un_revokes(self):
+        """A pass that quietly restored a badge would undo a moderator's
+        judgement every time it ran -- and it runs on a timer."""
+        listing = self.published()
+        awarding.run(as_of=self.a_year_later(listing))
+        award = Award.objects.get(kind=Award.Kind.SUSTAINED)
+        award.revoke('Plan turned out to be plagiarised.')
+
+        awarding.run(as_of=self.a_year_later(listing))
+
+        award.refresh_from_db()
+        self.assertFalse(award.is_current)
+
+    def test_new_and_granted_are_different_answers(self):
+        """`granted` is what the rules currently say is earned; `new` is what
+        this run created. A report that printed the first every night would
+        train whoever reads it to stop.
+
+        Published from the admin rather than through `publish`, which would
+        have granted the badge itself and left this run with nothing new to
+        find -- the mistake the first draft of this test made.
+        """
+        self.plan(slug='by-hand', owner_account=self.ada,
+                  status=Listing.Status.PUBLISHED, contributed_by=self.ada)
+
+        first = awarding.run()
+        second = awarding.run()
+
+        self.assertEqual(len(first['new']), 1)
+        self.assertEqual(len(second['granted']), 1)
+        self.assertEqual(second['new'], [])
+
+
+class TheAwardsCommandTests(BadgeRulesFixture):
+    """Every listing here is published from the admin rather than through
+    `publish`, because `publish` grants the badge itself -- so a test that
+    went that way would leave the command with nothing to report and would
+    pass on the wrong branch."""
+
+    def by_hand(self, slug='by-hand'):
+        return self.plan(slug=slug, owner_account=self.ada,
+                         status=Listing.Status.PUBLISHED,
+                         contributed_by=self.ada)
+
+    def test_it_names_what_it_granted(self):
+        """"Granted 14" gives whoever ran it no way to notice that one of the
+        fourteen is wrong."""
+        self.by_hand()
+        out = StringIO()
+
+        call_command('awards', stdout=out)
+
+        self.assertIn('A Year of Botany', out.getvalue())
+        self.assertIn('ada', out.getvalue())
+
+    def test_a_second_run_says_so_rather_than_repeating_itself(self):
+        self.by_hand()
+        call_command('awards', stdout=StringIO())
+        out = StringIO()
+
+        call_command('awards', stdout=out)
+
+        self.assertIn('Nothing new', out.getvalue())

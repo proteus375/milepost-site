@@ -16,7 +16,10 @@ the right repair.
 """
 
 from django.contrib import admin
+from django.template.response import TemplateResponse
+from django.urls import path
 
+from . import brigading
 from .models import Acquisition, Listing, Review, TermsAcceptance
 
 
@@ -115,3 +118,54 @@ class ReviewAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    # --- §H.7's brigading query -------------------------------------------
+    #
+    # A PAGE, NOT A RULE. §H.7 refuses an automatic threshold for three
+    # reasons, and the third is the one that shapes this: "a suppression rule
+    # is invisible to the person it acts on and produces a support
+    # conversation nobody in it can win." So this reads and displays; nothing
+    # here writes, hides, or discounts anything.
+    #
+    # ON `ReviewAdmin` RATHER THAN `ListingAdmin`, though it lists listings.
+    # What an operator arrives with is a suspicion about reviews, and the
+    # thing they will do next is open them -- `AcquisitionAdmin`'s note about
+    # `household` being "half of §H.7's brigading query" points the same way.
+    #
+    # DISCOVERABLE, because a moderation tool nobody can find is not one. The
+    # link is in `admin/catalog/review/change_list.html`, which Django picks
+    # up by name with no `change_list_template` to set.
+
+    def get_urls(self):
+        """The custom view first, so the default `<path:object_id>/` catch-all
+        does not swallow `brigading/` and send somebody to a 404 for a review
+        with that primary key."""
+        return [
+            path(
+                'brigading/',
+                self.admin_site.admin_view(self.brigading_view),
+                name='catalog_review_brigading',
+            ),
+        ] + super().get_urls()
+
+    def brigading_view(self, request):
+        """The clusters, with the thresholds that produced them on the page.
+
+        The numbers are rendered rather than left in the source because
+        whoever reads this page is the person best placed to say they are
+        wrong, and they cannot say so about a threshold they cannot see.
+        """
+        return TemplateResponse(
+            request,
+            'admin/catalog/review/brigading.html',
+            {
+                **self.admin_site.each_context(request),
+                'title': 'Possible brigading',
+                'clusters': brigading.clusters(),
+                'window_days': brigading.WINDOW.days,
+                'minimum': brigading.CLUSTER_MINIMUM,
+                'poor_at_or_below': brigading.POOR,
+                'mostly_poor': int(brigading.MOSTLY_POOR * 100),
+                'opts': self.model._meta,
+            },
+        )

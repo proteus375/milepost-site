@@ -26,7 +26,7 @@ from accounts.models import (
     Account, Award, Organisation, OrganisationMembership, grant,
 )
 from billing.models import Household, HouseholdMembership
-from catalog import awarding, reputation
+from catalog import awarding, brigading, reputation
 from catalog.packs import attach
 from catalog.models import (
     Acquisition, Review, may_review, record_acquisition,
@@ -1941,3 +1941,227 @@ class TheAwardsCommandTests(BadgeRulesFixture):
         call_command('awards', stdout=out)
 
         self.assertIn('Nothing new', out.getvalue())
+
+
+class BrigadingFixture(ReputationFixture):
+    """Crowds of households acquiring one plan and rating it."""
+
+    def crowd(self, size, *, rating, listing=None, when=None, prefix='r'):
+        """`size` distinct households acquire the plan and rate it at `when`.
+
+        Distinct HOUSEHOLDS rather than accounts, because that is what the
+        query counts and because `Review` takes its household from the
+        acquisition rather than looking one up.
+
+        Handles are three characters minimum -- `validate_handle` refuses
+        anything shorter -- so the counter is zero-padded. Found by the
+        validator on the first run of this fixture, which is the validator
+        doing its job.
+        """
+        listing = listing or self.plan_of_ada
+        when = when or timezone.now()
+        for n in range(size):
+            account = self.subscriber(f'{prefix}{n:02d}')
+            acquisition = record_acquisition(listing, account)
+            acquisition.acquired_at = when
+            acquisition.save(update_fields=['acquired_at'])
+            review = Review.objects.create(
+                listing=listing, account=account,
+                household=acquisition.household, rating=rating,
+            )
+            # `created_at` defaults to now and is not `auto_now_add`, so an
+            # UPDATE is the honest way to place a review in the past. Done
+            # through the queryset to avoid `save()` touching anything else.
+            Review.objects.filter(pk=review.pk).update(created_at=when)
+
+
+class WhatABrigadeLooksLikeTests(BrigadingFixture):
+    """§H.7: "a cluster of first-time acquisitions of one listing inside a
+    short window, followed by low ratings, from accounts with little other
+    history. Nothing needs to be added to see it.\""""
+
+    def test_a_cluster_of_low_ratings_is_surfaced(self):
+        self.crowd(6, rating=1)
+
+        found = brigading.clusters()
+
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]['listing'], self.plan_of_ada)
+        self.assertEqual(found[0]['poor'], 6)
+
+    def test_a_handful_of_unhappy_readers_is_not_a_cluster(self):
+        """Below the minimum. A few bad reviews is the normal texture of a
+        catalogue, and a queue that surfaces it is a queue nobody reads."""
+        self.crowd(brigading.CLUSTER_MINIMUM - 1, rating=1)
+
+        self.assertEqual(brigading.clusters(), [])
+
+    def test_a_mixed_reception_is_not_a_brigade(self):
+        """Six unhappy readers and four happy ones is a divisive plan. The
+        share falls under the bar and it stays off the page."""
+        self.crowd(6, rating=1, prefix='low')
+        self.crowd(4, rating=5, prefix='high')
+
+        self.assertEqual(brigading.clusters(), [])
+
+    def test_a_cluster_outside_the_window_is_not_current(self):
+        """A rolling window ending now, which answers "what is happening". A
+        sweep for brigades from last quarter is a different tool."""
+        self.crowd(8, rating=1, when=timezone.now() - timedelta(days=30))
+
+        self.assertEqual(brigading.clusters(), [])
+
+    def test_three_is_a_rating_somebody_can_hold(self):
+        """`POOR` is 2, not 3. Three is "Worth using", and a cluster of those
+        is a mild plan rather than an attack."""
+        self.crowd(8, rating=3)
+
+        self.assertEqual(brigading.clusters(), [])
+
+    def test_the_worst_comes_first(self):
+        """Somebody opening this page should not have to sort it."""
+        second = self.plan(slug='latin', owner_account=self.ada,
+                           status=Listing.Status.PUBLISHED)
+        self.crowd(6, rating=1, prefix='one')
+        self.crowd(9, rating=1, listing=second, prefix='two')
+
+        found = brigading.clusters()
+
+        self.assertEqual([c['listing'] for c in found],
+                         [second, self.plan_of_ada])
+
+
+class ThePopularLaunchMustProduceNothingTests(BrigadingFixture):
+    """THE REVERSE TEST, WRITTEN WITH THE FEATURE BECAUSE §H.7 ASKS FOR IT.
+
+    "The false positive is a genuinely popular new listing that forty families
+    acquire and rate in a week -- which is the *best* thing that can happen on
+    this platform, and an automatic rule would mistake it for the worst."
+
+    The §E.7 audit found that the untested direction is the one that fails,
+    and the untested direction of an anti-brigading rule is a legitimate
+    surge. Anybody changing a number in `brigading.py` should read this class
+    first.
+    """
+
+    def test_forty_families_loving_a_plan_in_a_week_produces_nothing(self):
+        self.crowd(40, rating=5)
+
+        self.assertEqual(brigading.clusters(), [])
+
+    def test_nor_does_a_hit_with_a_few_detractors(self):
+        """A popular launch does not become a brigade because three people
+        disliked it in the same week."""
+        self.crowd(40, rating=5, prefix='fan')
+        self.crowd(3, rating=1, prefix='foe')
+
+        self.assertEqual(brigading.clusters(), [])
+
+    def test_and_a_surge_of_new_subscribers_is_still_not_one(self):
+        """Every household here is a first-timer -- the "little other
+        history" half of the signature -- and they are delighted. Newness
+        alone must never put a listing on this page."""
+        self.crowd(40, rating=5)
+
+        self.assertEqual(brigading.clusters(), [])
+
+
+class NewcomersAreCountedNotFilteredTests(BrigadingFixture):
+    """§H.7 says a co-ordinated group of real subscribers with a grievance
+    "costs nothing extra at all". Those accounts have history, so filtering on
+    newness would hide the cheapest brigade there is."""
+
+    def test_a_fresh_crowd_is_reported_as_fresh(self):
+        self.crowd(6, rating=1)
+
+        self.assertEqual(brigading.clusters()[0]['newcomers'], 6)
+
+    def test_a_brigade_of_established_households_is_still_surfaced(self):
+        """The number drops to zero and the row stays. This is the test that
+        stops somebody turning `newcomers` into a filter."""
+        second = self.plan(slug='latin', owner_account=self.ada,
+                           status=Listing.Status.PUBLISHED)
+        self.crowd(6, rating=1, listing=second, prefix='old')
+        for account in Account.objects.filter(handle__startswith='old'):
+            acquisition = record_acquisition(self.plan_of_ada, account)
+            Review.objects.create(
+                listing=self.plan_of_ada, account=account,
+                household=acquisition.household, rating=1,
+            )
+
+        found = [c for c in brigading.clusters()
+                 if c['listing'] == self.plan_of_ada]
+
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]['newcomers'], 0)
+
+
+class TheQueryOnlyReadsTests(BrigadingFixture):
+    """§H.7's third reason for refusing an automatic rule: "a suppression rule
+    is invisible to the person it acts on and produces a support conversation
+    nobody in it can win.\""""
+
+    def test_running_it_changes_nothing(self):
+        self.crowd(6, rating=1)
+        before = (Review.objects.count(), Acquisition.objects.count())
+
+        brigading.clusters()
+
+        self.assertEqual(
+            (Review.objects.count(), Acquisition.objects.count()), before,
+        )
+
+    def test_every_review_is_still_on_the_listing_page(self):
+        """The reviews the query surfaced are still public afterwards, which
+        is the promise this module makes."""
+        self.crowd(6, rating=1)
+        brigading.clusters()
+
+        response = self.client.get(reverse('listing', args=['botany']))
+
+        self.assertContains(response, 'r00')
+        self.assertContains(response, 'r05')
+
+
+class TheBrigadingPageTests(BrigadingFixture):
+    def setUp(self):
+        super().setUp()
+        self.keeper = Account.objects.create_superuser(
+            email='keeper@example.com', handle='keeper',
+            password='a-long-enough-passphrase',
+        )
+
+    def test_a_stranger_is_sent_to_the_admin_login(self):
+        response = self.client.get('/admin/catalog/review/brigading/')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_it_lists_a_cluster(self):
+        self.crowd(6, rating=1)
+        self.client.force_login(self.keeper)
+
+        response = self.client.get('/admin/catalog/review/brigading/')
+
+        self.assertContains(response, 'A Year of Botany')
+
+    def test_it_says_what_it_was_looking_for_when_nothing_matches(self):
+        """An empty page is only useful if it states the thresholds. Whoever
+        reads this is the person best placed to say they are wrong."""
+        self.client.force_login(self.keeper)
+
+        response = self.client.get('/admin/catalog/review/brigading/')
+
+        self.assertContains(response, 'Nothing matches')
+        self.assertContains(response, str(brigading.CLUSTER_MINIMUM))
+        self.assertContains(response, str(brigading.WINDOW.days))
+
+    def test_the_review_list_links_to_it(self):
+        """A moderation tool nobody can find is not one -- and the link hangs
+        off a Django admin block name, which is exactly the kind of thing that
+        disappears silently on an upgrade."""
+        self.client.force_login(self.keeper)
+
+        response = self.client.get('/admin/catalog/review/')
+
+        self.assertContains(response, '/admin/catalog/review/brigading/')

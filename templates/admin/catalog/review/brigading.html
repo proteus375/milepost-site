@@ -1,0 +1,87 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+§H.7, as a page somebody reads rather than a rule that acts.
+
+THE THRESHOLDS ARE PRINTED ON THE PAGE. Whoever reads this is the person best
+placed to say they are wrong, and they cannot say so about a number they
+cannot see. The same goes for the empty state: "nothing matched" is only
+useful if it says what it was looking for.
+
+NOTHING HERE IS A VERDICT. Every row is a listing worth thirty seconds of
+somebody's attention, and the page says so in as many words -- because the
+first person to read it in a hurry will otherwise treat the list as a list of
+guilty parties.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url 'admin:catalog_review_changelist' %}">Reviews</a>
+    &rsaquo; Possible brigading
+  </div>
+{% endblock %}
+
+{% block content %}
+  <p>
+    Listings that took {{ minimum }} or more reviews in the last
+    {{ window_days }} days, where at least {{ mostly_poor }}% of them rated
+    {{ poor_at_or_below }} or below.
+  </p>
+
+  <p>
+    <strong>This is a list to look at, not a list of offenders.</strong>
+    Nothing on this page has been hidden, discounted or flagged on any record,
+    and nothing will be. A co-ordinated group of real subscribers with a
+    grievance looks exactly like a group of readers who all disliked the same
+    plan, and the difference is a judgement rather than a threshold.
+  </p>
+
+  {% if clusters %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Listing</th>
+          <th scope="col">Owner</th>
+          <th scope="col">Reviews</th>
+          <th scope="col">Rated {{ poor_at_or_below }} or below</th>
+          <th scope="col">Average</th>
+          <th scope="col">Households</th>
+          <th scope="col">First-timers</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cluster in clusters %}
+          <tr>
+            <th scope="row">
+              <a href="{% url 'admin:catalog_listing_change' cluster.listing.pk %}">
+                {{ cluster.listing.title }}
+              </a>
+            </th>
+            <td>{{ cluster.listing.owner_name }}</td>
+            <td>{{ cluster.reviews }}</td>
+            <td>{{ cluster.poor }}</td>
+            <td>{{ cluster.average|floatformat:1 }}</td>
+            <td>{{ cluster.households }}</td>
+            {% comment %}
+            Reported, never filtered on. §H.7's signature mentions accounts
+            with little other history, but the brigade the design says is
+            cheapest to mount -- real subscribers who co-ordinate -- has
+            plenty of history, so filtering on newness would hide exactly
+            that one.
+            {% endcomment %}
+            <td>{{ cluster.newcomers }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p>
+      <strong>First-timers</strong> counts the reviewing households whose only
+      acquisition of anything is this one. A high number beside a low average
+      is the shape §H.7 describes. A low number is not an all-clear.
+    </p>
+  {% else %}
+    <p>Nothing matches that shape right now.</p>
+  {% endif %}
+{% endblock %}

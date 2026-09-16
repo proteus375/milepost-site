@@ -1,0 +1,26 @@
+{% extends "admin/change_list.html" %}
+{% comment %}
+The only reason this file exists: a link to §H.7's brigading page.
+
+A MODERATION TOOL NOBODY CAN FIND IS NOT ONE. The query is reachable at its own
+URL either way; what this buys is that somebody who arrives at the reviews list
+with a suspicion sees that the page exists without having been told.
+
+Django picks this up by name -- `admin/<app>/<model>/change_list.html` is
+already in `ModelAdmin`'s search path -- so there is no `change_list_template`
+to set and nothing to keep in sync.
+
+`object-tools-items` rather than `object-tools`, so the default tools render
+too via `block.super` instead of being replaced by this one link. If a future
+Django renames that block the link disappears silently, which is why
+`TheBrigadingPageTests` asserts it is here.
+{% endcomment %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:catalog_review_brigading' %}" class="viewlink">
+      Possible brigading
+    </a>
+  </li>
+  {{ block.super }}
+{% endblock %}
